@@ -1,0 +1,79 @@
+@use 'variables' as *;
+
+// ─── Layout ───────────────────────────────────────
+
+@mixin flex-center {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+@mixin flex-between {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+// ─── Card ─────────────────────────────────────────
+@mixin card {
+    background: $card-bg;
+    border-radius: $radius-md;
+    border: 1px solid $border-color;
+    box-shadow: $shadow-sm;
+}
+
+// ─── Button base ──────────────────────────────────
+@mixin button-base {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: $spacing-sm;
+    padding: 10px 18px;
+    border-radius: $radius-sm;
+    border: none;
+    cursor: pointer;
+    font-size: $font-size-sm;
+    font-weight: 600;
+    font-family: $font-family;
+    transition: all 0.2s ease;
+
+    &:focus-visible {
+        outline: 2px solid $primary;
+        outline-offset: 2px;
+    }
+
+    &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+}
+
+// ─── Input base ───────────────────────────────────
+@mixin input-base {
+    width: 100%;
+    padding: 12px 16px;
+    border-radius: $radius-sm;
+    border: 1px solid $border-color;
+    background: $bg;
+    font-size: $font-size-sm;
+    font-family: $font-family;
+    color: $text-main;
+    transition: all 0.2s ease;
+
+    &::placeholder {
+        color: $text-secondary;
+    }
+
+    &:focus {
+        outline: none;
+        border-color: $primary;
+        box-shadow: 0 0 0 3px rgba($primary, 0.25);
+    }
+}
+
+// ─── Truncate text ────────────────────────────────
+@mixin truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

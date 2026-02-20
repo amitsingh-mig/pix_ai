@@ -2,17 +2,12 @@ const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 
 exports.register = async (req, res) => {
-    const { username, email, password, role } = req.body;
+    // NOTE: role is intentionally NOT taken from req.body — prevents privilege escalation
+    const { username, email, password } = req.body;
 
     try {
-        const user = await User.create({
-            username,
-            email,
-            password,
-            role
-        });
-
-        sendTokenResponse(user, 200, res);
+        const user = await User.create({ username, email, password });
+        sendTokenResponse(user, 201, res);
     } catch (err) {
         res.status(400).json({ success: false, error: err.message });
     }
@@ -26,17 +21,26 @@ exports.login = async (req, res) => {
     }
 
     try {
+        console.log(`[AUTH DEBUG] Login attempt for email: "${email}" (length: ${email?.length})`);
+        console.log(`[AUTH DEBUG] Provided password length: ${password?.length}`);
+
         const user = await User.findOne({ email }).select('+password');
 
         if (!user) {
+            console.log(`[AUTH DEBUG] User not found in DB: "${email}"`);
             return res.status(401).json({ success: false, error: 'Invalid credentials' });
         }
 
+        console.log(`[AUTH DEBUG] User found: ${user.email}. Role: ${user.role}`);
         const isMatch = await user.matchPassword(password);
+        console.log(`[AUTH DEBUG] Password match result: ${isMatch}`);
 
         if (!isMatch) {
+            console.log(`[AUTH DEBUG] Password mismatch for: ${email}`);
             return res.status(401).json({ success: false, error: 'Invalid credentials' });
         }
+
+
 
         sendTokenResponse(user, 200, res);
     } catch (err) {

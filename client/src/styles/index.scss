@@ -1,0 +1,20 @@
+// ─── SCSS variables & mixins (no CSS output) ──────
+@use 'variables';
+@use 'mixins';
+
+// ─── Global base styles ───────────────────────────
+@use 'base';
+
+// ─── Custom component partials ────────────────────
+@use 'buttons';
+@use 'forms';
+@use 'cards';
+@use 'navbar';
+
+// ─── Tailwind layers ──────────────────────────────
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+// ─── Google Font (loaded last, no blocking) ───────
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');

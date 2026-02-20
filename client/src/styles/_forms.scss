@@ -1,0 +1,86 @@
+@use 'variables' as *;
+@use 'mixins' as *;
+
+// ─── Input ────────────────────────────────────────
+
+.form-input {
+    @include input-base;
+
+    &.has-icon {
+        padding-left: 40px;
+    }
+}
+
+// ─── Auth page wrapper ────────────────────────────
+.auth-page {
+    @include flex-center;
+    flex-direction: column;
+    min-height: 100vh;
+    background: $bg;
+    padding: 48px 16px;
+}
+
+// ─── Auth card ────────────────────────────────────
+.auth-card {
+    @include card;
+    width: 100%;
+    max-width: 448px;
+    padding: 40px 32px;
+    box-shadow: $shadow-md;
+}
+
+// ─── Brand logo block ─────────────────────────────
+.brand-logo {
+    @include flex-center;
+    gap: 12px;
+    margin-bottom: 32px;
+}
+
+.brand-icon {
+    @include flex-center;
+    width: 48px;
+    height: 48px;
+    border-radius: $radius-md;
+    background: $primary;
+    box-shadow: $shadow-sm;
+    flex-shrink: 0;
+}
+
+// ─── Upload drop zone ─────────────────────────────
+.drop-zone {
+    border: 2px dashed $border-color;
+    border-radius: $radius-lg;
+    background: $bg;
+    transition: border-color 0.2s ease;
+    cursor: pointer;
+
+    &:hover {
+        border-color: $primary;
+    }
+
+    &__icon {
+        @include flex-center;
+        width: 56px;
+        height: 56px;
+        border-radius: $radius-md;
+        background: rgba($primary, 0.12);
+        border: 1px solid rgba($primary, 0.25);
+        margin: 0 auto 16px;
+    }
+}
+
+// ─── Progress bar ─────────────────────────────────
+.progress-bar {
+    width: 100%;
+    height: 6px;
+    border-radius: 99px;
+    background: $border-color;
+    overflow: hidden;
+
+    &__fill {
+        height: 100%;
+        border-radius: 99px;
+        background: linear-gradient(90deg, $primary, $secondary);
+        transition: width 0.3s ease;
+    }
+}

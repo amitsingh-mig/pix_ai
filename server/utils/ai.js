@@ -1,21 +1,28 @@
 const OpenAI = require('openai');
 const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
-
-const s3 = new S3Client({
-    region: process.env.AWS_REGION,
-    credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
-    }
-});
+const { isAWSConfigured } = require('./s3');
 
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
 
 exports.generateTags = async (mediaKey) => {
+    // If not using S3, we can't easily give OpenAI a URL to the image
+    // So we use fallback tags
+    if (!isAWSConfigured) {
+        return getFallbackTags();
+    }
+
     try {
+        const s3 = new S3Client({
+            region: process.env.AWS_REGION,
+            credentials: {
+                accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+                secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+            }
+        });
+
         // Generate a presigned URL for the S3 object so OpenAI can access it
         const command = new GetObjectCommand({
             Bucket: process.env.AWS_BUCKET_NAME,
@@ -50,15 +57,19 @@ exports.generateTags = async (mediaKey) => {
 
     } catch (err) {
         console.error("OpenAI Error (Using fallback tags):", err);
-        // Fallback to mock tags if OpenAI fails
-        const mockTags = ['nature', 'landscape', 'photography', 'art', 'travel', 'summer', 'sunset'];
-        const randomTags = [];
-        for (let i = 0; i < 3; i++) {
-            const randomIndex = Math.floor(Math.random() * mockTags.length);
-            if (!randomTags.includes(mockTags[randomIndex])) {
-                randomTags.push(mockTags[randomIndex]);
-            }
-        }
-        return randomTags;
+        return getFallbackTags();
     }
 };
+
+const getFallbackTags = () => {
+    const mockTags = ['nature', 'lifestyle', 'media', 'creative', 'modern', 'digital', 'abstract'];
+    const randomTags = [];
+    for (let i = 0; i < 3; i++) {
+        const randomIndex = Math.floor(Math.random() * mockTags.length);
+        if (!randomTags.includes(mockTags[randomIndex])) {
+            randomTags.push(mockTags[randomIndex]);
+        }
+    }
+    return randomTags;
+};
+

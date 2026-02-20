@@ -1,0 +1,26 @@
+@use 'variables' as *;
+
+// ─── Reset & base ─────────────────────────────────
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html {
+    font-family: $font-family;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+    margin: 0;
+    background: $bg;
+    color: $text-main;
+    min-height: 100vh;
+}
+
+#root {
+    min-height: 100vh;
+}

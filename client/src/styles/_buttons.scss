@@ -1,0 +1,63 @@
+@use 'variables' as *;
+@use 'mixins' as *;
+@use "sass:color";
+
+
+.btn {
+    @include button-base;
+
+    // ── Primary (yellow) ──────────────────────────
+    &-primary {
+        width: 100%;
+        background: $primary;
+        color: $text-main;
+
+        &:hover:not(:disabled) {
+            background: $secondary;
+        }
+    }
+
+    // ── Secondary ─────────────────────────────────
+    &-secondary {
+        background: $secondary;
+        color: $text-main;
+
+        &:hover:not(:disabled) {
+            background: $primary;
+        }
+    }
+
+    // ── Danger (delete) ───────────────────────────
+    &-danger {
+        padding: 6px 12px;
+        font-size: $font-size-xs;
+        background: $danger;
+        color: #fff;
+
+        &:hover:not(:disabled) {
+            background: color.adjust($danger, $lightness: -10%);
+        }
+    }
+
+    // ── Accent (red) ──────────────────────────────
+    &-accent {
+        background: $accent;
+        color: #fff;
+
+        &:hover:not(:disabled) {
+            background: $danger;
+        }
+    }
+
+    // ── Outline ───────────────────────────────────
+    &-outline {
+        background: transparent;
+        border: 1px solid $border-color;
+        color: $text-secondary;
+
+        &:hover:not(:disabled) {
+            border-color: $primary;
+            color: $text-main;
+        }
+    }
+}

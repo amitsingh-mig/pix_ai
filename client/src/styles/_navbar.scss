@@ -1,0 +1,133 @@
+@use 'variables' as *;
+@use 'mixins' as *;
+
+.navbar {
+
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: $card-bg;
+    border-bottom: 1px solid $border-color;
+    box-shadow: $shadow-sm;
+
+    &__inner {
+        @include flex-between;
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 0 $spacing-lg;
+        height: 64px;
+    }
+
+    // ─ Brand ───────────────────────────────────────
+    &__brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        text-decoration: none;
+
+        &-icon {
+            @include flex-center;
+            width: 36px;
+            height: 36px;
+            border-radius: $radius-sm;
+            background: $primary;
+            box-shadow: $shadow-sm;
+            transition: transform 0.2s ease;
+        }
+
+        &:hover &-icon {
+            transform: scale(1.05);
+        }
+
+        span {
+            font-size: 15px;
+            font-weight: 700;
+            color: $text-main;
+        }
+    }
+
+    // ─ Nav links group ─────────────────────────────
+    &__links {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    // ─ Individual nav link ─────────────────────────
+    &__link {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 12px;
+        border-radius: $radius-sm;
+        font-size: $font-size-sm;
+        font-weight: 500;
+        color: $text-secondary;
+        text-decoration: none;
+        transition: all 0.15s ease;
+
+        &:hover,
+        &--active {
+            color: $accent;
+            background: rgba($primary, 0.10);
+        }
+    }
+
+    // ─ Divider ─────────────────────────────────────
+    &__divider {
+        width: 1px;
+        height: 24px;
+        background: $border-color;
+        margin: 0 8px;
+    }
+
+    // ─ User chip ───────────────────────────────────
+    &__user {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: $font-size-sm;
+        color: $text-main;
+        font-weight: 500;
+
+        &-avatar {
+            @include flex-center;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: rgba($primary, 0.25);
+            flex-shrink: 0;
+        }
+
+        &-badge {
+            font-size: 11px;
+            background: rgba($accent, 0.1);
+            color: $accent;
+            border: 1px solid rgba($accent, 0.2);
+            padding: 2px 6px;
+            border-radius: 99px;
+            font-weight: 600;
+        }
+    }
+
+    // ─ Logout link ─────────────────────────────────
+    &__logout {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 12px;
+        border-radius: $radius-sm;
+        font-size: $font-size-sm;
+        font-weight: 500;
+        color: $text-secondary;
+        background: none;
+        border: none;
+        cursor: pointer;
+        transition: all 0.15s ease;
+
+        &:hover {
+            color: $danger;
+            background: rgba($danger, 0.06);
+        }
+    }
+}

@@ -23,7 +23,12 @@ const MediaSchema = new mongoose.Schema({
         ref: 'User',
         required: true
     },
+    album: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Album'
+    },
     metadata: {
+
         type: Object
     },
     createdAt: {

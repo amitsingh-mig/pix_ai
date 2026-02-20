@@ -1,7 +1,79 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-body {
-  @apply bg-gray-100 text-gray-900;
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    @apply bg-bg text-textMain min-h-screen;
+  }
+}
+
+@layer components {
+
+  /* ── Auth pages ── */
+  .auth-page {
+    @apply min-h-screen flex items-center justify-center bg-bg px-4 py-12;
+  }
+
+  .auth-card {
+    @apply w-full max-w-md bg-card rounded-2xl shadow-lg border border-borderColor px-8 py-10;
+  }
+
+  /* ── Inputs ── */
+  .form-input {
+    @apply w-full px-4 py-3 rounded-xl text-sm text-textMain placeholder-textSecondary bg-bg border border-borderColor focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all duration-200;
+  }
+
+  /* ── Primary button ── */
+  .btn-primary {
+    @apply w-full flex justify-center items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold text-textMain bg-primary hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm;
+  }
+
+  /* ── Danger button ── */
+  .btn-danger {
+    @apply flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-danger hover:bg-red-700 transition-all duration-150;
+  }
+
+  /* ── Stat card ── */
+  .stat-card {
+    @apply bg-card rounded-2xl border border-borderColor shadow-sm p-6 flex items-center gap-5;
+  }
+
+  .stat-icon {
+    @apply w-12 h-12 rounded-xl flex items-center justify-center bg-primary/20 flex-shrink-0;
+  }
+
+  /* ── Media card ── */
+  .media-card {
+    @apply bg-card rounded-2xl border border-borderColor shadow-sm overflow-hidden hover:shadow-lg hover:scale-[1.02] transition-all duration-300 cursor-pointer;
+  }
+
+  /* ── Tab filter ── */
+  .filter-tab {
+    @apply px-4 py-2 rounded-lg text-sm font-medium transition-all duration-150 text-textSecondary hover:text-textMain hover:bg-primary/10;
+  }
+
+  .filter-tab-active {
+    @apply bg-primary text-textMain font-semibold;
+  }
+
+  /* ── Brand logo block ── */
+  .brand-logo {
+    @apply flex items-center justify-center gap-3 mb-8;
+  }
+
+  .brand-icon {
+    @apply w-12 h-12 rounded-2xl flex items-center justify-center bg-primary shadow-md;
+  }
 }

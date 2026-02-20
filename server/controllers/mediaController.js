@@ -1,70 +1,128 @@
 const Media = require('../models/Media');
-const { deleteFromS3 } = require('../utils/s3');
+const { deleteFromS3, isAWSConfigured } = require('../utils/s3');
 const { generateTags } = require('../utils/ai');
 
+// @desc    Upload media (single or multiple)
+// @route   POST /api/media
+// @access  Private
 exports.uploadMedia = async (req, res) => {
     try {
-        if (!req.file) {
-            return res.status(400).json({ success: false, message: 'Please upload a file' });
+        const files = req.files || (req.file ? [req.file] : []);
+
+        if (files.length === 0) {
+            return res.status(400).json({ success: false, message: 'Please upload at least one file' });
         }
 
-        const mediaKey = req.file.key; // S3 Key
-        let tags = [];
+        const albumId = req.body.albumId || null;
+        const uploadedMedia = [];
 
-        // Only generate tags for images
-        if (req.file.mimetype.startsWith('image')) {
-            tags = await generateTags(mediaKey);
-        } else {
-            // For videos, we could use Rekognition Video, but for now we'll use generic tags or skip
-            tags = ['video', 'multimedia'];
-        }
+        for (const file of files) {
+            const mediaKey = isAWSConfigured ? file.key : file.filename;
+            const mediaUrl = isAWSConfigured ? file.location : `/uploads/${file.filename}`;
 
-        const media = await Media.create({
-            title: req.body.title || req.file.originalname,
-            url: req.file.location, // S3 URL
-            type: req.file.mimetype.startsWith('image') ? 'image' : 'video',
-            tags: tags,
-            uploadedBy: req.user.id,
-            metadata: {
-                size: req.file.size,
-                mimetype: req.file.mimetype,
-                bucket: req.file.bucket,
-                key: req.file.key
+            let tags = [];
+            if (file.mimetype.startsWith('image')) {
+                tags = await generateTags(mediaKey);
+            } else {
+                tags = ['video', 'multimedia'];
             }
-        });
 
-        res.status(201).json({ success: true, data: media });
+            const media = await Media.create({
+                title: req.body.title || file.originalname,
+                url: mediaUrl,
+                type: file.mimetype.startsWith('image') ? 'image' : 'video',
+                tags,
+                uploadedBy: req.user.id,
+                album: albumId,
+                metadata: {
+                    size: file.size,
+                    mimetype: file.mimetype,
+                    bucket: file.bucket || 'local',
+                    key: mediaKey
+                }
+            });
+
+            uploadedMedia.push(media);
+        }
+
+        res.status(201).json({
+            success: true,
+            count: uploadedMedia.length,
+            data: uploadedMedia
+        });
     } catch (err) {
         console.error(err);
         res.status(500).json({ success: false, error: 'Server Error' });
     }
 };
 
+
+
+// @desc    Get all media (with search, type filter, pagination)
+// @route   GET /api/media
+// @access  Public
 exports.getMedia = async (req, res) => {
     try {
-        let query;
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 12;
+        const skip = (page - 1) * limit;
 
-        // Search by title or tags
-        if (req.query.search) {
-            const searchRegex = new RegExp(req.query.search, 'i');
-            query = Media.find({
-                $or: [
-                    { title: searchRegex },
-                    { tags: { $in: [searchRegex] } }
-                ]
-            });
-        } else {
-            query = Media.find();
+        const filter = {};
+
+        // Type filter
+        if (req.query.type && ['image', 'video'].includes(req.query.type)) {
+            filter.type = req.query.type;
         }
 
-        const media = await query.populate('uploadedBy', 'username');
+        // Text search across title and tags
+        if (req.query.search) {
+            const searchRegex = new RegExp(req.query.search, 'i');
+            filter.$or = [
+                { title: searchRegex },
+                { tags: { $in: [searchRegex] } }
+            ];
+        }
 
-        res.status(200).json({ success: true, count: media.length, data: media });
+        const [media, total] = await Promise.all([
+            Media.find(filter)
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .populate('uploadedBy', 'username'),
+            Media.countDocuments(filter)
+        ]);
+
+        res.status(200).json({
+            success: true,
+            count: media.length,
+            total,
+            pages: Math.ceil(total / limit),
+            currentPage: page,
+            data: media
+        });
     } catch (err) {
         res.status(500).json({ success: false, error: 'Server Error' });
     }
 };
 
+// @desc    Get single media item
+// @route   GET /api/media/:id
+// @access  Public
+exports.getMediaById = async (req, res) => {
+    try {
+        const media = await Media.findById(req.params.id).populate('uploadedBy', 'username');
+        if (!media) {
+            return res.status(404).json({ success: false, error: 'Media not found' });
+        }
+        res.status(200).json({ success: true, data: media });
+    } catch (err) {
+        res.status(500).json({ success: false, error: 'Server Error' });
+    }
+};
+
+// @desc    Delete media
+// @route   DELETE /api/media/:id
+// @access  Private (owner or admin)
 exports.deleteMedia = async (req, res) => {
     try {
         const media = await Media.findById(req.params.id);
@@ -73,18 +131,15 @@ exports.deleteMedia = async (req, res) => {
             return res.status(404).json({ success: false, error: 'Media not found' });
         }
 
-        // Check ownership or admin role
         if (media.uploadedBy.toString() !== req.user.id && req.user.role !== 'admin') {
             return res.status(401).json({ success: false, error: 'Not authorized' });
         }
 
-        // Delete from S3
         if (media.metadata && media.metadata.key) {
             await deleteFromS3(media.metadata.key);
         }
 
         await media.deleteOne();
-
         res.status(200).json({ success: true, data: {} });
     } catch (err) {
         console.error(err);

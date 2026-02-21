@@ -11,7 +11,7 @@ const { upload } = require('../utils/s3');
 
 router.route('/')
     .get(getMedia)
-    .post(protect, upload.array('files', 10), uploadMedia);  // multiple files
+    .post(protect, upload.array('files', 120), uploadMedia);  // multiple files
 
 
 router.route('/:id')

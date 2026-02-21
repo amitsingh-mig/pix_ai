@@ -14,21 +14,22 @@ exports.uploadMedia = async (req, res) => {
         }
 
         const albumId = req.body.albumId || null;
-        const uploadedMedia = [];
+        const title = req.body.title;
 
-        for (const file of files) {
+        const uploadPromises = files.map(async (file) => {
             const mediaKey = isAWSConfigured ? file.key : file.filename;
             const mediaUrl = isAWSConfigured ? file.location : `/uploads/${file.filename}`;
 
             let tags = [];
             if (file.mimetype.startsWith('image')) {
+                // OpenAI calls are bypassed if isAWSConfigured is false in generateTags
                 tags = await generateTags(mediaKey);
             } else {
                 tags = ['video', 'multimedia'];
             }
 
-            const media = await Media.create({
-                title: req.body.title || file.originalname,
+            return Media.create({
+                title: title || file.originalname,
                 url: mediaUrl,
                 type: file.mimetype.startsWith('image') ? 'image' : 'video',
                 tags,
@@ -41,9 +42,9 @@ exports.uploadMedia = async (req, res) => {
                     key: mediaKey
                 }
             });
+        });
 
-            uploadedMedia.push(media);
-        }
+        const uploadedMedia = await Promise.all(uploadPromises);
 
         res.status(201).json({
             success: true,

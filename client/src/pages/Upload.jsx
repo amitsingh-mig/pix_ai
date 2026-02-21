@@ -35,9 +35,9 @@ const Upload = () => {
         const selectedFiles = Array.from(e.target.files);
         if (selectedFiles.length === 0) return;
 
-        // Limit to 10 files
-        if (files.length + selectedFiles.length > 10) {
-            setError('Maximum 10 files allowed per upload at once.');
+        // Limit to 120 files
+        if (files.length + selectedFiles.length > 120) {
+            setError('Maximum 120 files allowed per upload at once.');
             return;
         }
 
@@ -155,7 +155,7 @@ const Upload = () => {
                                 <p className="text-sm font-semibold text-textMain mb-1 text-center">
                                     <span className="text-primary font-bold">Select files</span> or drag and drop
                                 </p>
-                                <p className="text-xs text-textSecondary mt-1">Bulk upload up to 10 files at once</p>
+                                <p className="text-xs text-textSecondary mt-1">Bulk upload up to 120 files at once</p>
                                 <input id="file-upload" type="file" className="sr-only"
                                     onChange={handleFileChange} accept="image/*,video/*" multiple />
                             </label>

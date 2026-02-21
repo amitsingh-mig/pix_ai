@@ -12,7 +12,8 @@ const app = express();
 const path = require('path');
 
 // Middleware
-app.use(express.json());
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ limit: '100mb', extended: true }));
 app.use(cors());
 app.use((req, res, next) => {
     const start = Date.now();
@@ -55,7 +56,12 @@ const startServer = async () => {
         });
 
         const PORT = process.env.PORT || 5000;
-        app.listen(PORT, () => console.log(`✔ Server started on port ${PORT}`));
+        const server = app.listen(PORT, () => console.log(`✔ Server started on port ${PORT}`));
+
+        // Increase server timeout for large bulk uploads (10 minutes)
+        server.timeout = 600000;
+        server.keepAliveTimeout = 610000;
+        server.headersTimeout = 620000;
     } catch (err) {
         console.error('Failed to start server:', err.message);
         process.exit(1);

@@ -4,7 +4,7 @@ import Navbar from './Navbar';
 
 const MainLayout = () => {
     return (
-        <div className="min-h-screen bg-bg font-sans text-textMain">
+        <div className="sidebar min-h-screen bg-bg font-sans text-textMain">
             <Navbar />
             <main>
                 <Outlet />

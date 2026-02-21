@@ -13,9 +13,9 @@ export default {
                 danger: "#D73535",
                 bg: "#F8FAFC",
                 card: "#FFFFFF",
-                textMain: "#0F172A",
-                textSecondary: "#64748B",
-                borderColor: "#E2E8F0",
+                textMain: "#111827",
+                textSecondary: "#6B7280",
+                borderColor: "#E5E7EB",
             },
             fontFamily: {
                 sans: ['Inter', 'system-ui', 'sans-serif'],

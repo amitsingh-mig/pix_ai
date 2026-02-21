@@ -57,6 +57,38 @@
         box-shadow: $shadow-sm;
     }
 
+    &__location {
+        position: absolute;
+        top: 8px;
+        left: 8px;
+        max-width: calc(100% - 48px); // leave room for delete btn
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 8px;
+        border-radius: 99px;
+        background: rgba(0, 0, 0, 0.55);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        font-size: $font-size-xs;
+        font-weight: 500;
+        color: #fff;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+        pointer-events: none;
+        z-index: 2;
+
+        svg {
+            color: $primary;
+            flex-shrink: 0;
+        }
+
+        span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+    }
+
     &__delete {
         position: absolute;
         top: 8px;

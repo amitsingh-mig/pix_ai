@@ -34,8 +34,8 @@ const Register = () => {
                         <Camera className="w-6 h-6 text-textMain" />
                     </div>
                     <div>
-                        <h1 className="text-xl font-bold text-textMain leading-tight">AI Media</h1>
-                        <p className="text-xs text-textSecondary font-medium tracking-widest uppercase">Manager</p>
+                        <h1 className="text-xl font-bold text-textMain leading-tight">PIX<span className="text-accent">AI</span></h1>
+                        <p className="text-xs text-textSecondary font-medium tracking-widest uppercase">Powered by MIG</p>
                     </div>
                 </div>
 

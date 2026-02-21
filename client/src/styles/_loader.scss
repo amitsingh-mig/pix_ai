@@ -1,0 +1,184 @@
+@use 'variables' as *;
+@use 'mixins' as *;
+
+// ─── Loader Overlay ───────────────────────────────────────────────────────────
+.loader-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    background: radial-gradient(ellipse at 50% 40%,
+            hsl(228, 28%, 10%) 0%,
+            hsl(226, 32%, 6%) 60%,
+            hsl(225, 36%, 4%) 100%);
+    overflow: hidden;
+
+    // Subtle grid texture
+    &::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background-image: linear-gradient(rgba(255, 212, 29, 0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 212, 29, 0.03) 1px, transparent 1px);
+        background-size: 48px 48px;
+        pointer-events: none;
+    }
+
+    // Radial glow
+    &::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -60%);
+        width: 500px;
+        height: 500px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(255, 212, 29, 0.12) 0%, transparent 70%);
+        pointer-events: none;
+    }
+}
+
+// ─── 3D Canvas Wrapper ────────────────────────────────────────────────────────
+.loader-canvas-wrap {
+    width: 280px;
+    height: 280px;
+    position: relative;
+    z-index: 1;
+    flex-shrink: 0;
+
+    canvas {
+        border-radius: 50%;
+    }
+
+    @media (max-width: 480px) {
+        width: 220px;
+        height: 220px;
+    }
+}
+
+// ─── Branding ─────────────────────────────────────────────────────────────────
+.loader-brand {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    margin-top: -8px;
+}
+
+.loader-logo {
+    width: 60px;
+    height: 60px;
+    object-fit: contain;
+    margin: 0 auto 8px;
+    display: block;
+    border-radius: 14px;
+    filter: drop-shadow(0 0 12px rgba(255, 212, 29, 0.45));
+    animation: loader-logo-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes loader-logo-pulse {
+
+    0%,
+    100% {
+        filter: drop-shadow(0 0 10px rgba(255, 212, 29, 0.4));
+    }
+
+    50% {
+        filter: drop-shadow(0 0 22px rgba(255, 212, 29, 0.75));
+    }
+}
+
+.loader-title {
+    font-family: $font-family;
+    font-size: 2.6rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: #ffffff;
+    line-height: 1;
+    margin: 0;
+
+    .loader-title-ai {
+        color: $primary;
+        display: inline-block;
+        background: linear-gradient(135deg, $primary, $secondary);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    @media (max-width: 480px) {
+        font-size: 2rem;
+    }
+}
+
+.loader-subtitle {
+    font-family: $font-family;
+    font-size: $font-size-sm;
+    color: rgba(255, 255, 255, 0.4);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin: 8px 0 0;
+}
+
+// ─── Footer ───────────────────────────────────────────────────────────────────
+.loader-footer {
+    position: relative;
+    z-index: 1;
+    width: 280px;
+    margin-top: 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+
+    @media (max-width: 480px) {
+        width: 220px;
+    }
+}
+
+// ─── Progress Bar ─────────────────────────────────────────────────────────────
+.loader-progress-track {
+    width: 100%;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    position: relative;
+    overflow: visible;
+}
+
+.loader-progress-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, $primary, $secondary);
+    position: relative;
+    box-shadow: 0 0 12px rgba(255, 212, 29, 0.6), 0 0 24px rgba(255, 162, 64, 0.3);
+    will-change: width;
+}
+
+.loader-progress-glow {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: $primary;
+    box-shadow: 0 0 10px 4px rgba(255, 212, 29, 0.5);
+    transition: left 0.3s ease;
+    pointer-events: none;
+}
+
+// ─── Status Text ──────────────────────────────────────────────────────────────
+.loader-status {
+    font-family: $font-family;
+    font-size: $font-size-xs;
+    color: rgba(255, 255, 255, 0.3);
+    letter-spacing: 0.06em;
+    text-align: center;
+    margin: 0;
+    min-height: 1.2em;
+}

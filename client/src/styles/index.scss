@@ -10,6 +10,9 @@
 @use 'forms';
 @use 'cards';
 @use 'navbar';
+@use 'modal';
+@use 'onboarding';
+@use 'loader';
 
 // ─── Tailwind layers ──────────────────────────────
 @tailwind base;

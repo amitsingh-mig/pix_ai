@@ -4,7 +4,8 @@ const {
     uploadMedia,
     getMedia,
     getMediaById,
-    deleteMedia
+    deleteMedia,
+    updateMediaAlbum
 } = require('../controllers/mediaController');
 const { protect } = require('../middleware/authMiddleware');
 const { upload } = require('../utils/s3');
@@ -17,5 +18,8 @@ router.route('/')
 router.route('/:id')
     .get(getMediaById)
     .delete(protect, deleteMedia);
+
+router.route('/:id/album')
+    .put(protect, updateMediaAlbum);
 
 module.exports = router;

@@ -33,3 +33,58 @@ exports.createAlbum = async (req, res) => {
     }
 };
 
+// @desc    Update album
+// @route   PUT /api/albums/:id
+// @access  Private
+exports.updateAlbum = async (req, res) => {
+    try {
+        let album = await Album.findById(req.params.id);
+
+        if (!album) {
+            return res.status(404).json({ success: false, error: 'Album not found' });
+        }
+
+        // Make sure user is album owner
+        if (album.createdBy.toString() !== req.user.id) {
+            return res.status(401).json({ success: false, error: 'Not authorized' });
+        }
+
+        album = await Album.findByIdAndUpdate(req.params.id, req.body, {
+            new: true,
+            runValidators: true
+        });
+
+        res.status(200).json({ success: true, data: album });
+    } catch (err) {
+        res.status(400).json({ success: false, error: err.message });
+    }
+};
+
+// @desc    Delete album
+// @route   DELETE /api/albums/:id
+// @access  Private
+exports.deleteAlbum = async (req, res) => {
+    try {
+        const album = await Album.findById(req.params.id);
+
+        if (!album) {
+            return res.status(404).json({ success: false, error: 'Album not found' });
+        }
+
+        // Make sure user is album owner
+        if (album.createdBy.toString() !== req.user.id) {
+            return res.status(401).json({ success: false, error: 'Not authorized' });
+        }
+
+        // Before deleting, find all media associated with this album and clear the association
+        const Media = require('../models/Media');
+        await Media.updateMany({ album: req.params.id }, { $set: { album: null } });
+
+        await album.deleteOne();
+
+        res.status(200).json({ success: true, data: {} });
+    } catch (err) {
+        res.status(400).json({ success: false, error: err.message });
+    }
+};
+

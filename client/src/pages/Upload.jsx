@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
-import { Upload as UploadIcon, X, FileImage, Plus, FolderPlus, Loader2 } from 'lucide-react';
+import { Upload as UploadIcon, X, FileImage, Plus, FolderPlus, Loader2, MapPin } from 'lucide-react';
 
 const Upload = () => {
     const [files, setFiles] = useState([]);
@@ -10,6 +10,7 @@ const Upload = () => {
     const [selectedAlbum, setSelectedAlbum] = useState('');
     const [newAlbumName, setNewAlbumName] = useState('');
     const [showNewAlbumInput, setShowNewAlbumInput] = useState(false);
+    const [manualLocation, setManualLocation] = useState('');
     const [loading, setLoading] = useState(false);
     const [fetchingAlbums, setFetchingAlbums] = useState(true);
     const [progress, setProgress] = useState(0);
@@ -90,6 +91,10 @@ const Upload = () => {
             formData.append('albumId', selectedAlbum);
         }
 
+        if (manualLocation.trim()) {
+            formData.append('location', manualLocation.trim());
+        }
+
         setLoading(true);
         setError('');
         try {
@@ -100,6 +105,8 @@ const Upload = () => {
                     setProgress(pct);
                 }
             });
+            localStorage.setItem('justUploaded', 'true');
+            localStorage.setItem('highlightAI', 'true');
             navigate('/');
         } catch (err) {
             setError(err.response?.data?.error || err.response?.data?.message || 'Upload failed. Please try again.');
@@ -122,7 +129,7 @@ const Upload = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Left Column: Files & Upload */}
                 <div className="lg:col-span-2 space-y-6">
-                    <div className="drop-zone min-h-[300px] flex flex-col bg-card/10 border-2 border-dashed border-borderColor rounded-2xl">
+                    <div className="upload-form drop-zone min-h-[300px] flex flex-col bg-card/10 border-2 border-dashed border-borderColor rounded-2xl">
                         {previews.length > 0 ? (
                             <div className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
                                 {previews.map((prev, idx) => (
@@ -182,12 +189,12 @@ const Upload = () => {
                             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
                                 <FolderPlus className="w-4 h-4 text-primary" />
                             </div>
-                            <h2 className="text-sm font-bold text-textMain tracking-tight">Album Options</h2>
+                            <h2 className="text-sm font-bold text-textMain tracking-tight">Media Details</h2>
                         </div>
 
                         <div className="space-y-5">
                             <div>
-                                <label className="block text-[10px] font-bold text-textSecondary uppercase tracking-widest mb-2.5">Choose Destination</label>
+                                <label className="block text-[10px] font-bold text-textSecondary uppercase tracking-widest mb-2.5">Choose Album</label>
                                 {fetchingAlbums ? (
                                     <div className="flex items-center gap-2 text-xs text-textSecondary py-2">
                                         <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
@@ -245,6 +252,21 @@ const Upload = () => {
                                         </div>
                                     </div>
                                 )}
+                            </div>
+
+                            <div className="pt-4 border-t border-borderColor/50">
+                                <label className="block text-[10px] font-bold text-textSecondary uppercase tracking-widest mb-2.5">Manual Location (Optional)</label>
+                                <div className="relative">
+                                    <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-textSecondary/50" />
+                                    <input
+                                        type="text"
+                                        value={manualLocation}
+                                        onChange={(e) => setManualLocation(e.target.value)}
+                                        placeholder="E.g. Paris, France"
+                                        className="w-full pl-10 pr-3.5 py-2.5 rounded-xl text-sm bg-bg border border-borderColor focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                                    />
+                                </div>
+                                <p className="text-[10px] text-textSecondary mt-2 leading-relaxed">This will override or add to any EXIF location data.</p>
                             </div>
                         </div>
                     </div>

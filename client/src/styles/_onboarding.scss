@@ -1,0 +1,156 @@
+@use 'variables' as *;
+@use 'mixins' as *;
+@use 'sass:color';
+
+/* Pulse Animation for Onboarding Highlights */
+@keyframes pulse-highlight {
+    0% {
+        box-shadow: 0 0 0 0 rgba($primary, 0.4);
+    }
+
+    70% {
+        box-shadow: 0 0 0 10px rgba($primary, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba($primary, 0);
+    }
+}
+
+.ai-tag-button-highlight {
+    animation: pulse-highlight 2s infinite;
+    border: 2px solid $primary !important;
+}
+
+/* Onboarding Tooltip Styles (Joyride Overrides) */
+.__joyride__tooltip {
+    border-radius: $radius-xl !important;
+    padding: 24px !important;
+    background-color: $card-bg !important;
+    color: $text-main !important;
+    box-shadow: $shadow-lg !important;
+    border: 1px solid $border-color !important;
+    font-family: $font-family !important;
+}
+
+.__joyride__tooltip button {
+    border-radius: $radius-sm !important;
+    font-weight: 700 !important;
+    padding: 8px 16px !important;
+    transition: all 0.2s ease !important;
+}
+
+.__joyride__tooltip button[data-joyride="back"] {
+    color: $text-secondary !important;
+    background: transparent !important;
+}
+
+.__joyride__tooltip button[data-joyride="next"] {
+    background-color: $primary !important;
+    color: $text-main !important;
+}
+
+/* Fake Cursor Styles */
+.fake-cursor {
+    width: 24px;
+    height: 24px;
+    background: rgba(255, 255, 255, 0.8);
+    border: 2px solid $primary;
+    border-radius: 50%;
+    position: fixed;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    z-index: 9999;
+    box-shadow: 0 0 15px rgba($primary, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &::after {
+        content: '';
+        width: 6px;
+        height: 6px;
+        background: $primary;
+        border-radius: 50%;
+    }
+}
+
+/* AI Assistant Styles */
+.ai-assistant-wrapper {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    z-index: 1000;
+}
+
+.ai-assistant-btn {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: $primary;
+    color: $text-main;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 32px rgba($primary, 0.4);
+    cursor: pointer;
+    border: none;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+    &:hover {
+        transform: translateY(-5px) scale(1.05);
+        box-shadow: 0 12px 40px rgba($primary, 0.5);
+    }
+}
+
+.ai-assistant-popup {
+    position: absolute;
+    bottom: 80px;
+    right: 0;
+    width: 300px;
+    background: $card-bg;
+    border: 1px solid $border-color;
+    border-radius: $radius-xl;
+    padding: 20px;
+    box-shadow: $shadow-lg;
+    transform-origin: bottom right;
+}
+
+.ai-assistant-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba($border-color, 0.5);
+
+    h4 {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 800;
+        color: $text-main;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+}
+
+.ai-assistant-content {
+    font-size: 13px;
+    line-height: 1.6;
+    color: $text-secondary;
+    min-height: 60px;
+}
+
+.ai-assistant-tip-label {
+    display: inline-block;
+    padding: 2px 6px;
+    background: $primary;
+    color: $text-main;
+    font-size: 9px;
+    font-weight: 800;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}

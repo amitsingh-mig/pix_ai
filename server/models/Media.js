@@ -11,7 +11,6 @@ const MediaSchema = new mongoose.Schema({
     },
     type: {
         type: String,
-        enum: ['image', 'video'],
         required: true
     },
     tags: {
@@ -28,8 +27,34 @@ const MediaSchema = new mongoose.Schema({
         ref: 'Album'
     },
     metadata: {
-
-        type: Object
+        size: Number,
+        mimetype: String,
+        bucket: String,
+        key: String,
+        exif: {
+            camera: String,
+            lens: String,
+            captureDate: Date,
+            iso: Number,
+            shutterSpeed: String,
+            aperture: String,
+        },
+        location: {
+            lat: Number,
+            lng: Number,
+            city: String,
+            country: String,
+            address: String,
+            placeName: String
+        },
+        people: [{
+            name: String,
+            boundingBox: Object,
+            confidence: Number
+        }],
+        device: String,
+        duration: Number,
+        resolution: String
     },
     createdAt: {
         type: Date,

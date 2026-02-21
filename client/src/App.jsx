@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Navbar from './components/Navbar';
@@ -10,6 +10,10 @@ import AdminAddUser from './pages/AdminAddUser';
 import Error404 from './pages/Error404';
 import Error400 from './pages/Error400';
 import Error500 from './pages/Error500';
+import Loader3D from './components/Loader3D';
+
+// Only show loader once per browser session
+const shouldShowLoader = () => !sessionStorage.getItem('loaderShown');
 
 const Spinner = () => (
   <div className="min-h-screen flex items-center justify-center bg-bg">
@@ -29,37 +33,57 @@ const AdminRoute = ({ children }) => {
   return user && user.role === 'admin' ? children : <Navigate to="/" replace />;
 };
 
-const App = () => (
-  <AuthProvider>
-    <div className="flex flex-col min-h-screen bg-bg font-sans text-textMain">
-      <Navbar />
-      <main className="flex-grow flex flex-col">
-        <Routes>
-          {/* Public routes */}
-          <Route path="/login" element={<Login />} />
+const App = () => {
+  const [loaderDone, setLoaderDone] = useState(!shouldShowLoader());
 
-          {/* Private routes */}
-          <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
-          <Route path="/upload" element={<PrivateRoute><Upload /></PrivateRoute>} />
+  const handleLoaderComplete = () => {
+    sessionStorage.setItem('loaderShown', 'true');
+    setLoaderDone(true);
+  };
 
-          {/* Admin-only routes */}
-          <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
-          <Route path="/admin/add-user" element={<AdminRoute><AdminAddUser /></AdminRoute>} />
+  return (
+    <AuthProvider>
+      {/* 3D Loader — renders on top; fades out via framer-motion */}
+      {!loaderDone && <Loader3D onComplete={handleLoaderComplete} />}
 
-          {/* Error pages for testing */}
-          <Route path="/400" element={<Error400 />} />
-          <Route path="/500" element={<Error500 />} />
-          <Route path="/404" element={<Error404 />} />
+      {/* Main app — visible once loader completes */}
+      <div
+        className="flex flex-col min-h-screen bg-bg font-sans text-textMain"
+        style={{
+          opacity: loaderDone ? 1 : 0,
+          transition: 'opacity 0.5s ease',
+          pointerEvents: loaderDone ? 'auto' : 'none',
+        }}
+      >
+        <Navbar />
+        <main className="flex-grow flex flex-col">
+          <Routes>
+            {/* Public routes */}
+            <Route path="/login" element={<Login />} />
 
-          {/* Redirect /register to login */}
-          <Route path="/register" element={<Navigate to="/login" replace />} />
+            {/* Private routes */}
+            <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+            <Route path="/upload" element={<PrivateRoute><Upload /></PrivateRoute>} />
 
-          {/* Catch-all 404 route */}
-          <Route path="*" element={<Error404 />} />
-        </Routes>
-      </main>
-    </div>
-  </AuthProvider>
-);
+            {/* Admin-only routes */}
+            <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+            <Route path="/admin/add-user" element={<AdminRoute><AdminAddUser /></AdminRoute>} />
+
+            {/* Error pages */}
+            <Route path="/400" element={<Error400 />} />
+            <Route path="/500" element={<Error500 />} />
+            <Route path="/404" element={<Error404 />} />
+
+            {/* Redirect /register to login */}
+            <Route path="/register" element={<Navigate to="/login" replace />} />
+
+            {/* Catch-all 404 */}
+            <Route path="*" element={<Error404 />} />
+          </Routes>
+        </main>
+      </div>
+    </AuthProvider>
+  );
+};
 
 export default App;

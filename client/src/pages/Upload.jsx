@@ -73,7 +73,7 @@ const Upload = () => {
             setShowNewAlbumInput(false);
             setError('');
         } catch (err) {
-            setError(err.response?.data?.error || 'Failed to create album');
+            setError(err.response?.data?.error || err.response?.data?.message || 'Failed to create album');
         }
     };
 
@@ -102,7 +102,7 @@ const Upload = () => {
             });
             navigate('/');
         } catch (err) {
-            setError(err.response?.data?.error || 'Upload failed. Please try again.');
+            setError(err.response?.data?.error || err.response?.data?.message || 'Upload failed. Please try again.');
         } finally {
             setLoading(false);
         }

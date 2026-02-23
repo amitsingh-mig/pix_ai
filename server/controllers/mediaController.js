@@ -1,7 +1,8 @@
 const Media = require('../models/Media');
 const Album = require('../models/Album');
-const { isAWSConfigured, deleteFromS3 } = require('../utils/s3');
+const { isAWSConfigured, deleteFile } = require('../utils/s3');
 const { generateTags } = require('../utils/ai');
+const { generateThumbnail } = require('../utils/thumbnailService');
 const { extractExif, detectPeople, reverseGeocode, extractVideoMetadata } = require('../utils/metadataExtractor');
 const path = require('path');
 const fs = require('fs');
@@ -25,29 +26,27 @@ exports.uploadMedia = async (req, res) => {
         const title = req.body.title;
         const manualLocation = req.body.location;
 
-        const uploadPromises = files.map(async (file) => {
-            const mediaKey = isAWSConfigured ? file.key : file.filename;
-            const mediaUrl = isAWSConfigured ? file.location : `/uploads/${file.filename}`;
+        const uploadedMedia = [];
+        const processFile = async (file) => {
+            const subFolder = file.destination.split(path.join('data', 'media'))[1].replace(/^[\\\/]/, '');
+            const mediaKey = isAWSConfigured ? file.key : path.join(subFolder, file.filename).replace(/\\/g, '/');
+            const mediaUrl = isAWSConfigured ? file.location : `/data/media/${mediaKey}`;
             const isImage = file.mimetype.startsWith('image');
 
             let exifData = null;
             let locationData = null;
             let peopleData = [];
             let tags = [];
+            let thumbnailUrl = null;
 
             if (isImage) {
-                // 1. Extract EXIF
-                let exifInput = file.path; // Local path
-                if (isAWSConfigured) {
-                    // For S3, we'd ideally stream just the header, but for simplicity here
-                    // we might skip or use a buffer if available. 
-                    // However, Rekognition needs the S3 ref.
-                    // Let's assume for EXIF we need the buffer if on S3.
-                    // As a workaround, we'll try to get the buffer from the file object if present
-                    // or just skip EXIF for S3 for now to avoid complexity, OR fetch it.
-                    // For this task, let's try to handle local first as it's the current fallback.
+                // 0. Generate Thumbnail (Phase 2)
+                if (!isAWSConfigured) {
+                    thumbnailUrl = await generateThumbnail(file.path, file.filename);
                 }
 
+                // 1. Extract EXIF
+                const exifInput = file.path;
                 if (exifInput && fs.existsSync(exifInput)) {
                     exifData = await extractExif(exifInput);
                     if (exifData && exifData.location) {
@@ -72,12 +71,11 @@ exports.uploadMedia = async (req, res) => {
                         camera: videoMetadata.camera,
                         lens: videoMetadata.lens,
                         captureDate: videoMetadata.captureDate,
-                        iso: null, // ffprobe doesn't usually provide ISO in basic tags
+                        iso: null,
                         shutterSpeed: null,
                         aperture: null,
                         device: videoMetadata.device
                     };
-                    // Store extra video info in metadata
                     file.videoInfo = {
                         duration: videoMetadata.duration,
                         resolution: videoMetadata.resolution
@@ -93,13 +91,13 @@ exports.uploadMedia = async (req, res) => {
                 lng: exifData?.location?.lng
             } : null;
 
-            // 5. Manual location override/addition
+            // 5. Manual location override
             if (manualLocation) {
                 const manualGeo = await require('../utils/metadataExtractor').geocode(manualLocation);
                 if (manualGeo) {
                     finalLocation = {
                         ...manualGeo,
-                        placeName: manualLocation // Keep user's original input as placeName
+                        placeName: manualLocation
                     };
                 } else {
                     if (!finalLocation) finalLocation = {};
@@ -107,9 +105,10 @@ exports.uploadMedia = async (req, res) => {
                 }
             }
 
-            return Media.create({
+            const mediaItem = await Media.create({
                 title: title || file.originalname,
                 url: mediaUrl,
+                thumbnailUrl: thumbnailUrl || mediaUrl,
                 type: isImage ? 'image' : 'video',
                 tags,
                 uploadedBy: req.user.id,
@@ -127,9 +126,22 @@ exports.uploadMedia = async (req, res) => {
                     resolution: file.videoInfo?.resolution
                 }
             });
-        });
+            return mediaItem;
+        };
 
-        const uploadedMedia = await Promise.all(uploadPromises);
+        // Concurrency limited pool (Max 5)
+        const pool = new Set();
+        for (const file of files) {
+            if (pool.size >= 5) {
+                await Promise.race(pool);
+            }
+            const promise = processFile(file).then(res => {
+                pool.delete(promise);
+                uploadedMedia.push(res);
+            });
+            pool.add(promise);
+        }
+        await Promise.all(pool);
 
         res.status(201).json({
             success: true,
@@ -249,7 +261,7 @@ exports.deleteMedia = async (req, res) => {
         }
 
         if (media.metadata && media.metadata.key) {
-            await deleteFromS3(media.metadata.key);
+            await deleteFile(media.metadata.key);
         }
 
         await media.deleteOne();

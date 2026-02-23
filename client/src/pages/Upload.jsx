@@ -2,35 +2,24 @@ import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { Upload as UploadIcon, X, FileImage, Plus, FolderPlus, Loader2, MapPin } from 'lucide-react';
+import { useAlbums } from '../context/AlbumContext';
 
 const Upload = () => {
     const [files, setFiles] = useState([]);
     const [previews, setPreviews] = useState([]);
-    const [albums, setAlbums] = useState([]);
     const [selectedAlbum, setSelectedAlbum] = useState('');
     const [newAlbumName, setNewAlbumName] = useState('');
     const [showNewAlbumInput, setShowNewAlbumInput] = useState(false);
     const [manualLocation, setManualLocation] = useState('');
     const [loading, setLoading] = useState(false);
-    const [fetchingAlbums, setFetchingAlbums] = useState(true);
+    const { albums, refreshAlbums, addAlbum, loading: fetchingAlbums } = useAlbums();
     const [progress, setProgress] = useState(0);
     const [error, setError] = useState('');
     const navigate = useNavigate();
 
     useEffect(() => {
-        fetchAlbums();
-    }, []);
-
-    const fetchAlbums = async () => {
-        try {
-            const res = await api.get('/albums');
-            setAlbums(res.data.data);
-            setFetchingAlbums(false);
-        } catch (err) {
-            console.error('Failed to fetch albums', err);
-            setFetchingAlbums(false);
-        }
-    };
+        refreshAlbums();
+    }, [refreshAlbums]);
 
     const handleFileChange = (e) => {
         const selectedFiles = Array.from(e.target.files);
@@ -68,7 +57,7 @@ const Upload = () => {
         if (!newAlbumName.trim()) return;
         try {
             const res = await api.post('/albums', { name: newAlbumName });
-            setAlbums(prev => [res.data.data, ...prev]);
+            addAlbum(res.data.data);
             setSelectedAlbum(res.data.data._id);
             setNewAlbumName('');
             setShowNewAlbumInput(false);

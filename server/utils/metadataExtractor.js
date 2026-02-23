@@ -4,6 +4,8 @@ const { RekognitionClient, DetectFacesCommand } = require('@aws-sdk/client-rekog
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegInstaller = require('ffmpeg-static');
 
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 // Set ffmpeg path
 if (ffmpegInstaller) {
     ffmpeg.setFfmpegPath(ffmpegInstaller);
@@ -56,7 +58,19 @@ exports.extractVideoMetadata = async (filePath) => {
  */
 exports.extractExif = async (input) => {
     try {
-        const buffer = Buffer.isBuffer(input) ? input : fs.readFileSync(input);
+        // Size check before reading buffer (Requirement: If file > 25MB -> skip)
+        if (typeof input === 'string') {
+            const stats = fs.statSync(input);
+            const fileSizeInBytes = stats.size;
+            const fileSizeInMegabytes = fileSizeInBytes / (1024 * 1024);
+            if (fileSizeInMegabytes > 25) {
+                console.log(`ℹ File size (${fileSizeInMegabytes.toFixed(2)}MB) exceeds 25MB limit. Skipping EXIF extraction.`);
+                return null;
+            }
+        }
+
+        // Use async file reading to avoid blocking the event loop
+        const buffer = Buffer.isBuffer(input) ? input : await fs.promises.readFile(input);
         const parser = exifParser.create(buffer);
         const result = parser.parse();
 
@@ -115,6 +129,9 @@ exports.detectPeople = async (imageSource) => {
  */
 exports.reverseGeocode = async (lat, lng) => {
     try {
+        // Throttling for Nominatim (Requirement: ~1 request per second)
+        await delay(1000);
+
         const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`, {
             headers: { 'User-Agent': 'AI-Media-Management-System' }
         });
@@ -142,6 +159,9 @@ exports.reverseGeocode = async (lat, lng) => {
 exports.geocode = async (query) => {
     try {
         if (!query) return null;
+
+        // Throttling for Nominatim
+        await delay(1000);
 
         const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`, {
             headers: { 'User-Agent': 'AI-Media-Management-System' }

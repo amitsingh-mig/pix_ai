@@ -12,7 +12,7 @@ const { upload } = require('../utils/s3');
 
 router.route('/')
     .get(getMedia)
-    .post(protect, upload.array('files', 120), uploadMedia);  // multiple files
+    .post(protect, express.json({ limit: '100mb' }), upload.array('files', 120), uploadMedia);
 
 
 router.route('/:id')

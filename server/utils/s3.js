@@ -34,13 +34,15 @@ if (isAWSConfigured) {
     console.log('✔ AWS S3 storage initialized');
 } else {
     // Local storage fallback
-    const uploadDir = 'uploads';
-    if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir);
-    }
-
     storage = multer.diskStorage({
         destination: function (req, file, cb) {
+            const now = new Date();
+            const yearMonth = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
+            const uploadDir = path.join('data', 'media', yearMonth);
+
+            if (!fs.existsSync(uploadDir)) {
+                fs.mkdirSync(uploadDir, { recursive: true });
+            }
             cb(null, uploadDir);
         },
         filename: function (req, file, cb) {
@@ -48,18 +50,30 @@ if (isAWSConfigured) {
         }
     });
 
-    console.log('ℹ AWS not configured. Using local storage fallback.');
+    console.log('ℹ AWS not configured. Using monthly-partitioned local storage.');
 }
 
 const upload = multer({ storage });
 
-const deleteFromS3 = async (key) => {
+const deleteFile = async (key) => {
+    // Detect storage type (assuming local for now as per instructions)
     if (!isAWSConfigured) {
-        // Handle local file deletion if needed, but for now we skip or just log
-        console.log(`ℹ Local storage active. Skipping S3 deletion for: ${key}`);
+        // Handle local file deletion
+        const filePath = path.join(__dirname, '..', key.startsWith('data/media') ? key : path.join('data', 'media', key));
+        try {
+            if (fs.existsSync(filePath)) {
+                await fs.promises.unlink(filePath);
+                console.log(`✔ Local file deleted: ${key}`);
+            } else {
+                console.log(`ℹ Local file not found: ${key} (Expected at: ${filePath})`);
+            }
+        } catch (err) {
+            console.error(`✖ Error deleting local file (${key}):`, err.message);
+        }
         return;
     }
 
+    // fallback for S3 if configured
     const s3 = new S3Client({
         region: process.env.AWS_REGION,
         credentials: {
@@ -74,10 +88,11 @@ const deleteFromS3 = async (key) => {
     });
     try {
         await s3.send(command);
+        console.log(`✔ S3 object deleted: ${key}`);
     } catch (err) {
-        console.error("Error deleting from S3", err);
+        console.error("✖ Error deleting from S3", err);
     }
 };
 
-module.exports = { upload, deleteFromS3, isAWSConfigured };
+module.exports = { upload, deleteFile, isAWSConfigured };
 

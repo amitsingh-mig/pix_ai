@@ -7,10 +7,11 @@ const MediaCard = ({ item, user, onDelete, onClick }) => {
             {/* Thumbnail */}
             <div className="h-48 overflow-hidden bg-bg relative">
                 {item.type === 'image' ? (
-                    <img src={item.url} alt={item.title}
+                    <img src={item.thumbnailUrl || item.url} alt={item.title}
+                        loading="lazy"
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                 ) : (
-                    <video src={item.url} className="w-full h-full object-cover" />
+                    <video src={item.url} preload="none" className="w-full h-full object-cover" />
                 )}
 
                 {/* Location badge */}

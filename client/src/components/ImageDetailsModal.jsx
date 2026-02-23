@@ -9,22 +9,10 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import imageInfoAnimation from "../assets/lottie/image-info.json";
 
-const ImageDetailsModal = ({ image, onClose, onUpdate }) => {
-    const [albums, setAlbums] = useState([]);
+const ImageDetailsModal = ({ image, onClose, onUpdate, onDelete, albums = [] }) => {
     const [isUpdating, setIsUpdating] = useState(false);
     const [tagInput, setTagInput] = useState('');
 
-    useEffect(() => {
-        const fetchAlbums = async () => {
-            try {
-                const res = await api.get('/albums');
-                setAlbums(res.data.data);
-            } catch (err) {
-                console.error('Failed to fetch albums', err);
-            }
-        };
-        fetchAlbums();
-    }, []);
 
     if (!image) return null;
 
@@ -85,8 +73,11 @@ const ImageDetailsModal = ({ image, onClose, onUpdate }) => {
         if (window.confirm('Are you sure you want to delete this media?')) {
             try {
                 await api.delete(`/media/${image._id}`);
-                onClose();
-                window.location.reload(); // Simple way to refresh dashboard
+                if (onDelete) {
+                    onDelete(image._id);
+                } else {
+                    onClose();
+                }
             } catch (err) {
                 alert('Failed to delete media');
             }

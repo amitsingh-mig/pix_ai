@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { motion } from 'framer-motion';
 import { Search, Layers, ChevronLeft, ChevronRight, Folder, ArrowLeft, Plus } from 'lucide-react';
 import MediaCard from '../components/MediaCard';
 import AlbumCard from '../components/AlbumCard';
@@ -8,6 +9,7 @@ import ImageDetailsModal from '../components/ImageDetailsModal';
 import OnboardingTour from "../components/OnboardingTour";
 import FakeCursor from "../components/FakeCursor";
 import AIAssistant from "../components/AIAssistant";
+import { useAlbums } from '../context/AlbumContext';
 
 const TABS = [
     { label: 'All', value: '' },
@@ -18,7 +20,6 @@ const TABS = [
 
 const Dashboard = () => {
     const [media, setMedia] = useState([]);
-    const [albums, setAlbums] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -29,6 +30,7 @@ const Dashboard = () => {
     const [totalCount, setTotalCount] = useState(0);
     const [selectedImage, setSelectedImage] = useState(null);
     const { user } = useAuth();
+    const { albums, refreshAlbums, addAlbum, updateAlbumState, removeAlbumState, loading: albumsLoading } = useAlbums();
 
     // Debounce search
     useEffect(() => {
@@ -58,26 +60,9 @@ const Dashboard = () => {
         }
     }, [debouncedSearch, typeFilter, page, currentAlbum]);
 
-    const fetchAlbums = useCallback(async () => {
-        setLoading(true);
-        try {
-            const res = await api.get('/albums');
-            setAlbums(res.data.data);
-            setTotalCount(res.data.count);
-        } catch (err) {
-            console.error('Failed to fetch albums', err);
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
     useEffect(() => {
-        if (typeFilter === 'albums' && !currentAlbum) {
-            fetchAlbums();
-        } else {
-            fetchMedia(debouncedSearch, typeFilter, page, currentAlbum?._id);
-        }
-    }, [page, typeFilter, currentAlbum, debouncedSearch, fetchMedia, fetchAlbums]);
+        fetchMedia(debouncedSearch, typeFilter, page, currentAlbum?._id);
+    }, [page, typeFilter, currentAlbum, debouncedSearch, fetchMedia]);
 
     const handleSearch = (e) => {
         e.preventDefault();
@@ -109,8 +94,8 @@ const Dashboard = () => {
         const newName = window.prompt('Enter new album name:', album.name);
         if (!newName || newName === album.name) return;
         try {
-            await api.put(`/albums/${album._id}`, { name: newName });
-            setAlbums(albums.map(a => a._id === album._id ? { ...a, name: newName } : a));
+            const res = await api.put(`/albums/${album._id}`, { name: newName });
+            updateAlbumState(res.data.data);
         } catch (err) {
             alert('Failed to rename album');
         }
@@ -120,7 +105,7 @@ const Dashboard = () => {
         if (!window.confirm(`Delete album "${album.name}"? Media items will NOT be deleted.`)) return;
         try {
             await api.delete(`/albums/${album._id}`);
-            setAlbums(albums.filter(a => a._id !== album._id));
+            removeAlbumState(album._id);
         } catch (err) {
             alert('Failed to delete album');
         }
@@ -131,7 +116,7 @@ const Dashboard = () => {
         if (!name) return;
         try {
             const res = await api.post('/albums', { name });
-            setAlbums([res.data.data, ...albums]);
+            addAlbum(res.data.data);
         } catch (err) {
             alert('Failed to create album');
         }
@@ -139,53 +124,68 @@ const Dashboard = () => {
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-                <div className="flex items-center gap-4">
+            {/* Header / Command Center */}
+            <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-10 border-b border-borderColor/30 pb-10"
+            >
+                <div className="flex items-center gap-5">
                     {currentAlbum && (
                         <button
                             onClick={() => setCurrentAlbum(null)}
-                            className="p-2 hover:bg-bg rounded-xl text-textSecondary hover:text-textMain transition-all border border-borderColor/50"
+                            className="w-12 h-12 flex items-center justify-center bg-white border border-borderColor/50 rounded-2xl text-textSecondary hover:text-primary hover:border-primary/30 transition-all shadow-sm group"
                         >
-                            <ArrowLeft className="w-5 h-5" />
+                            <ArrowLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
                         </button>
                     )}
                     <div>
-                        <h1 className="text-2xl font-bold text-textMain">
+                        <h1 className="text-3xl font-black text-textMain tracking-tighter">
                             {currentAlbum ? currentAlbum.name : (typeFilter === 'albums' ? 'Albums' : 'Media Library')}
                         </h1>
-                        <p className="text-sm text-textSecondary mt-0.5">{totalCount} item{totalCount !== 1 ? 's' : ''}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                            <div className={`w-1.5 h-1.5 rounded-full ${loading ? 'bg-primary animate-pulse' : 'bg-green-500'}`} />
+                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-textSecondary">
+                                {loading ? 'Loading Dashboard...' : `${totalCount} Items Indexed`}
+                            </p>
+                        </div>
                     </div>
                 </div>
 
-                {/* Sub-header actions */}
+                {/* Sub-header actions / Interface */}
                 <div className="flex items-center gap-3">
                     {typeFilter === 'albums' && !currentAlbum && (
                         <button
                             onClick={handleCreateAlbum}
-                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-textMain bg-secondary hover:bg-primary transition-all shadow-sm"
+                            className="flex items-center gap-2 px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest text-textMain bg-primary hover:bg-secondary transition-all shadow-lg shadow-primary/10"
                         >
                             <Plus className="w-4 h-4" /> New Album
                         </button>
                     )}
 
-                    {/* Search (Hide if in Album list) */}
+                    {/* Search / Perception Filter */}
                     {(typeFilter !== 'albums' || currentAlbum) && (
-                        <form onSubmit={handleSearch} className="search-bar flex gap-2 w-full sm:w-auto">
-                            <div className="relative flex-grow sm:w-72">
-                                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-textSecondary pointer-events-none" />
-                                <input type="text" className="form-input pl-10"
-                                    placeholder="Search library…"
-                                    value={search} onChange={(e) => setSearch(e.target.value)} />
+                        <form onSubmit={handleSearch} className="flex items-center gap-3 w-full sm:w-auto">
+                            <div className="relative flex-grow sm:w-80 group">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-textSecondary group-focus-within:text-primary transition-colors" />
+                                <input
+                                    type="text"
+                                    className="w-full bg-white border border-borderColor/50 rounded-2xl py-3.5 pl-12 pr-4 text-sm font-medium focus:bg-white focus:border-primary/50 focus:ring-4 focus:ring-primary/5 transition-all outline-none"
+                                    placeholder="Search library..."
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                />
                             </div>
-                            <button type="submit"
-                                className="px-4 py-2.5 rounded-xl text-sm font-semibold text-textMain bg-primary hover:bg-secondary transition-all shadow-sm">
+                            <button
+                                type="submit"
+                                className="px-6 py-3.5 rounded-2xl text-[11px] font-black uppercase tracking-widest text-textMain bg-white border border-borderColor/50 hover:bg-primary hover:border-primary transition-all shadow-sm"
+                            >
                                 Search
                             </button>
                         </form>
                     )}
                 </div>
-            </div>
+            </motion.div>
 
             {/* Type filter tabs */}
             {!currentAlbum && (
@@ -201,7 +201,7 @@ const Dashboard = () => {
             )}
 
             {/* Grid */}
-            {loading ? (
+            {loading || (typeFilter === 'albums' && albumsLoading) ? (
                 <div className="flex flex-col items-center justify-center h-64 gap-3">
                     <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
                     <p className="text-sm text-textSecondary">Loading…</p>
@@ -260,6 +260,12 @@ const Dashboard = () => {
                 <ImageDetailsModal
                     image={selectedImage}
                     onClose={() => setSelectedImage(null)}
+                    albums={albums}
+                    onDelete={(id) => {
+                        setMedia(media.filter(m => m._id !== id));
+                        setTotalCount(c => c - 1);
+                        setSelectedImage(null);
+                    }}
                     onUpdate={(updated) => {
                         setMedia(media.map(m => m._id === updated._id ? updated : m));
                         setSelectedImage(updated);

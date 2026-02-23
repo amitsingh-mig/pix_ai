@@ -97,8 +97,15 @@ exports.updateProfilePhoto = async (req, res) => {
 
         const user = await User.findById(req.user.id);
 
-        // If file uploaded via S3, use location, else use local path
-        const fileUrl = req.file?.location || `/uploads/${req.file?.filename}`;
+        // If file uploaded via S3, use location, else use relative path from the data/media folder
+        let fileUrl;
+        if (req.file?.location) {
+            fileUrl = req.file.location;
+        } else {
+            // Construct the path relative to the root served by /data
+            const destination = req.file.destination.replace(/\\/g, '/'); // Normalize windows paths
+            fileUrl = `/${destination}/${req.file.filename}`;
+        }
 
         user.profilePhoto = fileUrl;
         await user.save();

@@ -1,6 +1,6 @@
 const User = require('../models/User');
 const Media = require('../models/Media');
-const { deleteFromS3 } = require('../utils/s3');
+const { deleteFile } = require('../utils/s3');
 
 // @desc    Get platform stats
 // @route   GET /api/admin/stats
@@ -69,7 +69,7 @@ exports.deleteUser = async (req, res) => {
         await Promise.all(
             mediaItems
                 .filter(m => m.metadata && m.metadata.key)
-                .map(m => deleteFromS3(m.metadata.key))
+                .map(m => deleteFile(m.metadata.key))
         );
 
         await Media.deleteMany({ uploadedBy: req.params.id });
@@ -77,8 +77,8 @@ exports.deleteUser = async (req, res) => {
 
         res.status(200).json({ success: true, data: {} });
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ success: false, error: 'Server Error' });
+        console.error('[ADMIN DELETE ERROR]', err);
+        res.status(500).json({ success: false, error: err.message || 'Server Error' });
     }
 };
 
@@ -117,5 +117,97 @@ exports.createUser = async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(400).json({ success: false, error: err.message });
+    }
+};
+// @desc    Get single user details
+// @route   GET /api/admin/users/:id
+// @access  Admin
+exports.getUserDetails = async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id);
+        if (!user) {
+            return res.status(404).json({ success: false, error: 'User not found' });
+        }
+
+        const mediaCount = await Media.countDocuments({ uploadedBy: req.params.id });
+
+        res.status(200).json({
+            success: true,
+            data: {
+                ...user._doc,
+                mediaCount
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: 'Server Error' });
+    }
+};
+
+// @desc    Update user details
+// @route   PUT /api/admin/users/:id
+// @access  Admin
+exports.updateUser = async (req, res) => {
+    try {
+        let user = await User.findById(req.params.id);
+        if (!user) {
+            return res.status(404).json({ success: false, error: 'User not found' });
+        }
+
+        const { username, email, role, fullName } = req.body;
+
+        // Check if updating to an existing username or email
+        if (username || email) {
+            const existing = await User.findOne({
+                $and: [
+                    { _id: { $ne: req.params.id } },
+                    { $or: [{ email: email || user.email }, { username: username || user.username }] }
+                ]
+            });
+            if (existing) {
+                return res.status(400).json({ success: false, error: 'Username or email already taken' });
+            }
+        }
+
+        user = await User.findByIdAndUpdate(req.params.id, {
+            username: username || user.username,
+            email: email || user.email,
+            role: role || user.role,
+            fullName: fullName !== undefined ? fullName : user.fullName
+        }, { new: true, runValidators: true });
+
+        res.status(200).json({
+            success: true,
+            data: user
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(400).json({ success: false, error: err.message });
+    }
+};
+// @desc    Change user password (Admin)
+// @route   PUT /api/admin/users/:id/password
+// @access  Admin
+exports.changeUserPassword = async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id);
+        if (!user) {
+            return res.status(404).json({ success: false, error: 'User not found' });
+        }
+
+        const { password } = req.body;
+        if (!password || password.length < 6) {
+            return res.status(400).json({ success: false, error: 'Please provide a password with at least 6 characters' });
+        }
+
+        user.password = password;
+        await user.save(); // Triggers the hashing middleware in User model
+
+        res.status(200).json({
+            success: true,
+            message: 'Password updated successfully'
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ success: false, error: 'Server Error' });
     }
 };

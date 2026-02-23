@@ -4,9 +4,10 @@ import api from '../services/api';
 import {
     Users, Image as ImageIcon, Video, Layers, Trash2,
     ShieldCheck, UserPlus, Search, ArrowRight, Activity,
-    Calendar, Mail, MoreVertical, ExternalLink
+    Calendar, Mail, MoreVertical, ExternalLink, Eye, Edit2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import AdminUserModal from '../components/AdminUserModal';
 
 const StatCard = ({ icon: Icon, label, value, colorClass, delay = 0 }) => (
     <motion.div
@@ -44,6 +45,8 @@ const AdminDashboard = () => {
     const [loadingUsers, setLoadingUsers] = useState(true);
     const [deletingId, setDeletingId] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedUserId, setSelectedUserId] = useState(null);
+    const [modalMode, setModalMode] = useState(null); // 'edit' or 'detail'
 
     useEffect(() => {
         const fetchData = async () => {
@@ -70,7 +73,8 @@ const AdminDashboard = () => {
         try {
             await api.delete(`/admin/users/${id}`);
             setUsers(prev => prev.filter(u => u._id !== id));
-            setStats(prev => prev ? { ...prev, totalUsers: prev.totalUsers - 1 } : prev);
+            // Trigger stats refresh
+            fetchStats();
         } catch (err) {
             alert(err.response?.data?.error || 'Failed to delete user');
         } finally {
@@ -242,9 +246,21 @@ const AdminDashboard = () => {
                                             </td>
                                             <td className="px-8 py-4.5 text-right">
                                                 <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button className="p-2 text-textSecondary hover:text-primary transition-colors">
-                                                        <MoreVertical className="w-4 h-4" />
+                                                    <button
+                                                        onClick={() => { setSelectedUserId(u._id); setModalMode('detail'); }}
+                                                        className="p-2 text-textSecondary hover:text-primary transition-colors"
+                                                        title="View Details"
+                                                    >
+                                                        <Eye className="w-4.5 h-4.5" />
                                                     </button>
+                                                    <button
+                                                        onClick={() => { setSelectedUserId(u._id); setModalMode('edit'); }}
+                                                        className="p-2 text-textSecondary hover:text-secondary transition-colors"
+                                                        title="Edit User"
+                                                    >
+                                                        <Edit2 className="w-4.5 h-4.5" />
+                                                    </button>
+
                                                     {u.role !== 'admin' && (
                                                         <button
                                                             onClick={() => handleDeleteUser(u._id, u.username)}
@@ -272,6 +288,18 @@ const AdminDashboard = () => {
                     </div>
                 </div>
             </motion.div>
+
+            {/* Admin User Modal (Edit/Detail) */}
+            {selectedUserId && (
+                <AdminUserModal
+                    userId={selectedUserId}
+                    mode={modalMode}
+                    onClose={() => { setSelectedUserId(null); setModalMode(null); }}
+                    onUpdate={(updatedUser) => {
+                        setUsers(prev => prev.map(u => u._id === updatedUser._id ? updatedUser : u));
+                    }}
+                />
+            )}
         </div>
     );
 };

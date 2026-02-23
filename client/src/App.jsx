@@ -13,6 +13,7 @@ import Error400 from './pages/Error400';
 import Error500 from './pages/Error500';
 import Profile from './pages/Profile';
 import Loader3D from './components/Loader3D';
+import OnboardingTour from './components/OnboardingTour';
 
 // Only show loader once per browser session
 const shouldShowLoader = () => !sessionStorage.getItem('loaderShown');
@@ -85,6 +86,7 @@ const App = () => {
               <Route path="*" element={<Error404 />} />
             </Routes>
           </main>
+          <OnboardingTour />
         </div>
       </AlbumProvider>
     </AuthProvider>

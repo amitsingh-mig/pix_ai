@@ -3,6 +3,7 @@ import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { Upload as UploadIcon, X, FileImage, Plus, FolderPlus, Loader2, MapPin } from 'lucide-react';
 import { useAlbums } from '../context/AlbumContext';
+import LocationAutocomplete from '../components/LocationAutocomplete';
 
 const Upload = () => {
     const [files, setFiles] = useState([]);
@@ -11,6 +12,7 @@ const Upload = () => {
     const [newAlbumName, setNewAlbumName] = useState('');
     const [showNewAlbumInput, setShowNewAlbumInput] = useState(false);
     const [manualLocation, setManualLocation] = useState('');
+    const [locationData, setLocationData] = useState(null);
     const [loading, setLoading] = useState(false);
     const { albums, refreshAlbums, addAlbum, loading: fetchingAlbums } = useAlbums();
     const [progress, setProgress] = useState(0);
@@ -80,7 +82,9 @@ const Upload = () => {
             formData.append('albumId', selectedAlbum);
         }
 
-        if (manualLocation.trim()) {
+        if (locationData) {
+            formData.append('locationData', JSON.stringify(locationData));
+        } else if (manualLocation.trim()) {
             formData.append('location', manualLocation.trim());
         }
 
@@ -118,7 +122,7 @@ const Upload = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Left Column: Files & Upload */}
                 <div className="lg:col-span-2 space-y-6">
-                    <div className="upload-form drop-zone min-h-[300px] flex flex-col bg-card/10 border-2 border-dashed border-borderColor rounded-2xl">
+                    <div id="upload-zone" className="upload-form drop-zone min-h-[300px] flex flex-col bg-card/10 border-2 border-dashed border-borderColor rounded-2xl">
                         {previews.length > 0 ? (
                             <div className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
                                 {previews.map((prev, idx) => (
@@ -193,6 +197,7 @@ const Upload = () => {
                                     <select
                                         value={selectedAlbum}
                                         onChange={(e) => setSelectedAlbum(e.target.value)}
+                                        id="album-select"
                                         className="w-full px-3.5 py-2.5 rounded-xl text-sm bg-bg border border-borderColor focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all appearance-none cursor-pointer"
                                     >
                                         <option value="">Ungrouped (Default)</option>
@@ -244,17 +249,13 @@ const Upload = () => {
                             </div>
 
                             <div className="pt-4 border-t border-borderColor/50">
-                                <label className="block text-[10px] font-bold text-textSecondary uppercase tracking-widest mb-2.5">Manual Location (Optional)</label>
-                                <div className="relative">
-                                    <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-textSecondary/50" />
-                                    <input
-                                        type="text"
-                                        value={manualLocation}
-                                        onChange={(e) => setManualLocation(e.target.value)}
-                                        placeholder="E.g. Paris, France"
-                                        className="w-full pl-10 pr-3.5 py-2.5 rounded-xl text-sm bg-bg border border-borderColor focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-                                    />
-                                </div>
+                                <label className="block text-[10px] font-bold text-textSecondary uppercase tracking-widest mb-2.5">Location (Optional)</label>
+                                <LocationAutocomplete
+                                    onSelect={(data) => {
+                                        setLocationData(data);
+                                        setManualLocation(data ? data.placeName : '');
+                                    }}
+                                />
                                 <p className="text-[10px] text-textSecondary mt-2 leading-relaxed">This will override or add to any EXIF location data.</p>
                             </div>
                         </div>

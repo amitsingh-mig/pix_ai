@@ -6,8 +6,16 @@ const Album = require('../models/Album');
 exports.getAlbums = async (req, res) => {
     try {
         console.log(`[ALBUM DEBUG] Fetching albums for user: ${req.user?.id}`);
-        const albums = await Album.find({ createdBy: req.user.id }).sort('-createdAt');
-        res.status(200).json({ success: true, count: albums.length, data: albums });
+        const albums = await Album.find({ createdBy: req.user.id }).sort('-createdAt').lean();
+
+        // Populate media count for each album
+        const Media = require('../models/Media');
+        const albumsWithCount = await Promise.all(albums.map(async (album) => {
+            const mediaCount = await Media.countDocuments({ album: album._id });
+            return { ...album, mediaCount };
+        }));
+
+        res.status(200).json({ success: true, count: albumsWithCount.length, data: albumsWithCount });
     } catch (err) {
         console.error(`[ALBUM DEBUG] GET albums error:`, err);
         res.status(400).json({ success: false, error: err.message });

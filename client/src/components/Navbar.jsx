@@ -44,8 +44,8 @@ const Navbar = () => {
                         {user ? (
                             <>
                                 <div className="hidden md:flex items-center gap-1 mr-4 pr-4 border-r border-borderColor/50">
-                                    <NavLink to="/" icon={<LayoutDashboard className="w-4 h-4" />} label="Dashboard" />
-                                    <NavLink to="/upload" icon={<Upload className="w-4 h-4" />} label="Upload" />
+                                    <NavLink id="nav-dashboard" to="/" icon={<LayoutDashboard className="w-4 h-4" />} label="Dashboard" />
+                                    <NavLink id="nav-upload" to="/upload" icon={<Upload className="w-4 h-4" />} label="Upload" />
 
                                     {user.role === 'admin' && (
                                         <>
@@ -56,7 +56,7 @@ const Navbar = () => {
                                 </div>
 
                                 <div className="flex items-center gap-4">
-                                    <Link to="/profile" className="flex items-center gap-3 pl-2 group">
+                                    <Link id="profile-section" to="/profile" className="flex items-center gap-3 pl-2 group">
                                         <div className="flex flex-col items-end hidden sm:block">
                                             <span className="text-xs font-black text-textMain leading-none group-hover:text-primary transition-colors">{user.username}</span>
                                             <span className="text-[9px] font-bold text-textSecondary uppercase tracking-widest mt-1">{user.role}</span>
@@ -110,8 +110,8 @@ const Navbar = () => {
     );
 };
 
-const NavLink = ({ to, icon, label }) => (
-    <Link to={to} className="relative group px-4 py-2 flex items-center gap-2 transition-colors">
+const NavLink = ({ to, icon, label, id }) => (
+    <Link id={id} to={to} className="relative group px-4 py-2 flex items-center gap-2 transition-colors">
         <span className="text-textSecondary group-hover:text-primary transition-colors">{icon}</span>
         <span className="text-[11px] font-black uppercase tracking-widest text-textSecondary group-hover:text-textMain transition-colors">{label}</span>
         <div className="absolute bottom-0 left-4 right-4 h-0.5 bg-primary scale-x-0 group-hover:scale-x-100 transition-transform origin-left rounded-full" />

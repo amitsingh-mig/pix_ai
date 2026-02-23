@@ -50,6 +50,37 @@ export const AlbumProvider = ({ children }) => {
         setAlbums(prev => prev.filter(a => a._id !== albumId));
     };
 
+    const deleteAlbum = async (albumId) => {
+        try {
+            await api.delete(`/albums/${albumId}`);
+            removeAlbumState(albumId);
+            return { success: true };
+        } catch (err) {
+            console.error('Failed to delete album', err);
+            throw err;
+        }
+    };
+
+    const [navigationPath, setNavigationPath] = useState([]);
+
+    const addToPath = useCallback((album) => {
+        if (!album) return;
+        setNavigationPath(prev => {
+            // If already at the end, don't add
+            if (prev.length > 0 && prev[prev.length - 1]._id === album._id) return prev;
+            // Limit to last 5
+            const newPath = [...prev, album];
+            if (newPath.length > 5) return newPath.slice(1);
+            return newPath;
+        });
+    }, []);
+
+    const clearPath = () => setNavigationPath([]);
+
+    const jumpToPath = (index) => {
+        setNavigationPath(prev => prev.slice(0, index + 1));
+    };
+
     return (
         <AlbumContext.Provider value={{
             albums,
@@ -57,7 +88,12 @@ export const AlbumProvider = ({ children }) => {
             refreshAlbums: fetchAlbums,
             addAlbum,
             updateAlbumState,
-            removeAlbumState
+            removeAlbumState,
+            deleteAlbum,
+            navigationPath,
+            addToPath,
+            clearPath,
+            jumpToPath
         }}>
             {children}
         </AlbumContext.Provider>

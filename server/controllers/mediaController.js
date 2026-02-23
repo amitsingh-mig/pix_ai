@@ -25,6 +25,7 @@ exports.uploadMedia = async (req, res) => {
         const albumId = req.body.albumId || null;
         const title = req.body.title;
         const manualLocation = req.body.location;
+        const locationDataBody = req.body.locationData ? JSON.parse(req.body.locationData) : null;
 
         const uploadedMedia = [];
         const processFile = async (file) => {
@@ -92,7 +93,16 @@ exports.uploadMedia = async (req, res) => {
             } : null;
 
             // 5. Manual location override
-            if (manualLocation) {
+            if (locationDataBody) {
+                finalLocation = {
+                    lat: locationDataBody.lat,
+                    lng: locationDataBody.lng,
+                    city: locationDataBody.city,
+                    country: locationDataBody.country,
+                    address: locationDataBody.address,
+                    placeName: locationDataBody.placeName
+                };
+            } else if (manualLocation) {
                 const manualGeo = await require('../utils/metadataExtractor').geocode(manualLocation);
                 if (manualGeo) {
                     finalLocation = {
@@ -162,6 +172,7 @@ exports.getMedia = async (req, res) => {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 12;
         const skip = (page - 1) * limit;
+        console.log(`[MEDIA DEBUG] GET media: page=${page}, limit=${limit}, search="${req.query.search}", type="${req.query.type}", album="${req.query.albumId}"`);
 
         const filter = {};
 
@@ -206,6 +217,7 @@ exports.getMedia = async (req, res) => {
                 });
             }
         }
+        console.log(`[MEDIA DEBUG] Final Filter: ${JSON.stringify(filter)}`);
 
         const [media, total] = await Promise.all([
             Media.find(filter)
@@ -217,6 +229,7 @@ exports.getMedia = async (req, res) => {
             Media.countDocuments(filter)
         ]);
 
+        console.log(`[MEDIA DEBUG] Found ${media.length} items out of ${total}`);
         res.status(200).json({
             success: true,
             count: media.length,

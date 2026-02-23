@@ -30,7 +30,7 @@ const Profile = () => {
     useEffect(() => {
         const fetchStats = async () => {
             try {
-                const res = await api.get('/api/users/stats');
+                const res = await api.get('/users/stats');
                 setStats(res.data.data);
             } catch (err) {
                 console.error('Stats fetch error:', err);
@@ -57,7 +57,7 @@ const Profile = () => {
         e.preventDefault();
         setLoading(true);
         try {
-            const res = await api.put('/api/users/profile', form);
+            const res = await api.put('/users/profile', form);
             setUser(res.data.data);
             setEditMode(false);
             setSuccess('Profile updated successfully');
@@ -73,7 +73,7 @@ const Profile = () => {
         if (passForm.newPassword.length < 6) return setError('New password too short');
         setPassLoading(true);
         try {
-            await api.put('/api/users/password', passForm);
+            await api.put('/users/password', passForm);
             setPassForm({ currentPassword: '', newPassword: '' });
             setSuccess('Password updated successfully');
         } catch (err) {
@@ -92,7 +92,7 @@ const Profile = () => {
 
         setPhotoLoading(true);
         try {
-            const res = await api.put('/api/users/photo', formData);
+            const res = await api.put('/users/photo', formData);
             setUser({ ...user, profilePhoto: res.data.data.profilePhoto });
             setSuccess('Photo updated');
         } catch (err) {

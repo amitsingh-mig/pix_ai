@@ -5,10 +5,16 @@ const {
     getMedia,
     getMediaById,
     deleteMedia,
-    updateMediaAlbum
+    updateMediaAlbum,
+    searchMedia,
+    updateMediaTags,
+    getFilterOptions
 } = require('../controllers/mediaController');
 const { protect } = require('../middleware/authMiddleware');
 const { upload } = require('../utils/s3');
+
+router.get('/search', searchMedia);
+router.get('/filters', protect, getFilterOptions);
 
 router.route('/')
     .get(getMedia)
@@ -21,5 +27,8 @@ router.route('/:id')
 
 router.route('/:id/album')
     .put(protect, updateMediaAlbum);
+
+router.route('/:id/tags')
+    .put(protect, updateMediaTags);
 
 module.exports = router;

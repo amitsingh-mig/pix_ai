@@ -87,7 +87,9 @@ exports.extractExif = async (input) => {
                 lat: tags.GPSLatitude,
                 lng: tags.GPSLongitude
             } : null,
-            device: tags.Make || 'Unknown'
+            device: tags.Make || 'Unknown',
+            make: tags.Make,
+            model: tags.Model
         };
     } catch (err) {
         console.error('EXIF Extraction Error:', err.message);

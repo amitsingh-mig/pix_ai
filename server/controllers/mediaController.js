@@ -23,9 +23,22 @@ exports.uploadMedia = async (req, res) => {
         }
 
         const albumId = req.body.albumId || null;
+        let albumName = null;
+        if (albumId) {
+            const album = await Album.findById(albumId);
+            if (album) {
+                albumName = album.name;
+            }
+        }
+
         const title = req.body.title;
         const manualLocation = req.body.location;
         const locationDataBody = req.body.locationData ? JSON.parse(req.body.locationData) : null;
+
+        // Parse shared tags from req.body
+        const sharedTags = req.body.tags
+            ? req.body.tags.split(',').map(tag => tag.trim().toLowerCase()).filter(tag => tag.length > 0)
+            : [];
 
         const uploadedMedia = [];
         const processFile = async (file) => {
@@ -37,7 +50,7 @@ exports.uploadMedia = async (req, res) => {
             let exifData = null;
             let locationData = null;
             let peopleData = [];
-            let tags = [];
+            let aiTags = [];
             let thumbnailUrl = null;
 
             if (isImage) {
@@ -63,7 +76,7 @@ exports.uploadMedia = async (req, res) => {
                 peopleData = await detectPeople(rekSource);
 
                 // 3. AI Tags (OpenAI)
-                tags = await generateTags(mediaKey);
+                aiTags = await generateTags(mediaKey);
             } else if (file.mimetype.startsWith('video')) {
                 // 1. Extract Video Metadata (ffprobe)
                 const videoMetadata = await extractVideoMetadata(file.path);
@@ -82,8 +95,11 @@ exports.uploadMedia = async (req, res) => {
                         resolution: videoMetadata.resolution
                     };
                 }
-                tags = ['video', 'multimedia'];
+                aiTags = ['video', 'multimedia'];
             }
+
+            // Merge shared tags with AI tags
+            const finalTags = Array.from(new Set([...sharedTags, ...(aiTags || []).map(t => t.toLowerCase())]));
 
             // Prepare location object
             let finalLocation = locationData ? {
@@ -92,7 +108,7 @@ exports.uploadMedia = async (req, res) => {
                 lng: exifData?.location?.lng
             } : null;
 
-            // 5. Manual location override
+            // 5. Manual location override - REPLACE instead of merge
             if (locationDataBody) {
                 finalLocation = {
                     lat: locationDataBody.lat,
@@ -110,19 +126,32 @@ exports.uploadMedia = async (req, res) => {
                         placeName: manualLocation
                     };
                 } else {
-                    if (!finalLocation) finalLocation = {};
-                    finalLocation.placeName = manualLocation;
+                    // Clear any EXIF location if manual text is provided but geocoding fails
+                    finalLocation = { placeName: manualLocation };
                 }
             }
 
             const mediaItem = await Media.create({
                 title: title || file.originalname,
+                description: req.body.description || '',
                 url: mediaUrl,
                 thumbnailUrl: thumbnailUrl || mediaUrl,
                 type: isImage ? 'image' : 'video',
-                tags,
+                tags: finalTags,
                 uploadedBy: req.user.id,
-                album: albumId,
+                album: albumName,
+                albumId: albumId,
+                location: finalLocation ? {
+                    name: finalLocation.placeName || finalLocation.city,
+                    address: finalLocation.address,
+                    latitude: finalLocation.lat,
+                    longitude: finalLocation.lng
+                } : null,
+                camera: exifData ? {
+                    make: exifData.make,
+                    model: exifData.model
+                } : null,
+                device: exifData?.device || 'Unknown',
                 metadata: {
                     size: file.size,
                     mimetype: file.mimetype,
@@ -183,16 +212,68 @@ exports.getMedia = async (req, res) => {
 
         // Album filter
         if (req.query.albumId) {
-            filter.album = req.query.albumId;
+            filter.albumId = req.query.albumId;
         }
 
-        // Advanced Search
+        // Camera filter (Explicit)
+        if (req.query.camera) {
+            const cameraFilter = {
+                $or: [
+                    { 'camera.model': req.query.camera },
+                    { 'metadata.exif.camera': req.query.camera }
+                ]
+            };
+            if (!filter.$and) filter.$and = [];
+            filter.$and.push(cameraFilter);
+        }
+
+        // Location filter (Explicit)
+        if (req.query.location) {
+            const locationFilter = {
+                $or: [
+                    { 'location.name': req.query.location },
+                    { 'metadata.location.city': req.query.location },
+                    { 'metadata.location.placeName': req.query.location }
+                ]
+            };
+            if (!filter.$and) filter.$and = [];
+            filter.$and.push(locationFilter);
+        }
+
+        // Date Range filter
+        if (req.query.startDate || req.query.endDate) {
+            const dateRange = {};
+            if (req.query.startDate) dateRange.$gte = new Date(req.query.startDate);
+            if (req.query.endDate) {
+                const endDate = new Date(req.query.endDate);
+                endDate.setHours(23, 59, 59, 999);
+                dateRange.$lte = endDate;
+            }
+
+            const dateFilter = {
+                $or: [
+                    { 'metadata.exif.captureDate': dateRange },
+                    { 'createdAt': dateRange }
+                ]
+            };
+            if (!filter.$and) filter.$and = [];
+            filter.$and.push(dateFilter);
+        }
+
+        // Advanced Search - Unified for consistency
         if (req.query.search) {
             const escapedSearch = escapeRegex(req.query.search);
             const searchRegex = new RegExp(escapedSearch, 'i');
             filter.$or = [
                 { title: searchRegex },
                 { tags: searchRegex },
+                { album: searchRegex }, // Added root album
+                { description: searchRegex }, // Added description
+                { 'location.name': searchRegex }, // Added root location
+                { 'location.address': searchRegex },
+                { 'camera.make': searchRegex }, // Added root camera
+                { 'camera.model': searchRegex },
+                { device: searchRegex }, // Added root device
                 { 'metadata.exif.camera': searchRegex },
                 { 'metadata.exif.lens': searchRegex },
                 { 'metadata.location.city': searchRegex },
@@ -239,6 +320,109 @@ exports.getMedia = async (req, res) => {
             data: media
         });
     } catch (err) {
+        res.status(500).json({ success: false, error: 'Server Error' });
+    }
+};
+
+// @desc    Search media (Smart Search)
+// @route   GET /api/media/search
+// @access  Public
+exports.searchMedia = async (req, res) => {
+    try {
+        const query = req.query.q || '';
+        if (!query) {
+            return res.status(200).json({ success: true, data: [], total: 0 });
+        }
+
+        const keywords = query.split(/\s+/).filter(k => k.length > 0);
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 50;
+        const skip = (page - 1) * limit;
+
+        // Smart Search Logic - Unified Multi-Field Search
+        const keywordRegexes = keywords.map(k => new RegExp(escapeRegex(k), 'i'));
+
+        // Build an $and array where each element ensures ONE keyword matches AT LEAST ONE field
+        const andFilters = keywordRegexes.map(regex => ({
+            $or: [
+                { tags: { $in: [regex] } },
+                { album: regex },
+                { title: regex },
+                { description: regex },
+                { 'location.name': regex },
+                { 'location.address': regex },
+                { 'camera.make': regex },
+                { 'camera.model': regex },
+                { device: regex },
+                // Backward compatibility for metadata fields
+                { 'metadata.location.city': regex },
+                { 'metadata.location.country': regex },
+                { 'metadata.location.placeName': regex },
+                { 'metadata.location.address': regex },
+                { 'metadata.exif.camera': regex },
+                { 'metadata.exif.make': regex },
+                { 'metadata.exif.model': regex },
+                { 'metadata.device': regex }
+            ]
+        }));
+
+        const filter = { $and: andFilters };
+
+        // Combine with discrete filters if provided (Combined filtering)
+        if (req.query.camera) {
+            filter.$and.push({
+                $or: [
+                    { 'camera.model': req.query.camera },
+                    { 'metadata.exif.camera': req.query.camera }
+                ]
+            });
+        }
+
+        if (req.query.location) {
+            filter.$and.push({
+                $or: [
+                    { 'location.name': req.query.location },
+                    { 'metadata.location.city': req.query.location },
+                    { 'metadata.location.placeName': req.query.location }
+                ]
+            });
+        }
+
+        if (req.query.startDate || req.query.endDate) {
+            const dateRange = {};
+            if (req.query.startDate) dateRange.$gte = new Date(req.query.startDate);
+            if (req.query.endDate) {
+                const endDate = new Date(req.query.endDate);
+                endDate.setHours(23, 59, 59, 999);
+                dateRange.$lte = endDate;
+            }
+            filter.$and.push({
+                $or: [
+                    { 'metadata.exif.captureDate': dateRange },
+                    { 'createdAt': dateRange }
+                ]
+            });
+        }
+
+        const [media, total] = await Promise.all([
+            Media.find(filter)
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .populate('uploadedBy', 'username'),
+            Media.countDocuments(filter)
+        ]);
+
+        res.status(200).json({
+            success: true,
+            count: media.length,
+            total,
+            pages: Math.ceil(total / limit),
+            currentPage: page,
+            data: media
+        });
+    } catch (err) {
+        console.error('Search Error:', err);
         res.status(500).json({ success: false, error: 'Server Error' });
     }
 };
@@ -301,12 +485,110 @@ exports.updateMediaAlbum = async (req, res) => {
             return res.status(401).json({ success: false, error: 'Not authorized' });
         }
 
-        media.album = req.body.albumId || null;
+        const albumId = req.body.albumId || null;
+        let albumName = null;
+        if (albumId) {
+            const album = await Album.findById(albumId);
+            if (album) albumName = album.name;
+        }
+
+        media.albumId = albumId;
+        media.album = albumName;
         await media.save();
 
         res.status(200).json({ success: true, data: media });
     } catch (err) {
         console.error(err);
+        res.status(500).json({ success: false, error: 'Server Error' });
+    }
+};
+
+// @desc    Update media tags
+// @route   PUT /api/media/:id/tags
+// @access  Private
+exports.updateMediaTags = async (req, res) => {
+    try {
+        const media = await Media.findById(req.params.id);
+
+        if (!media) {
+            return res.status(404).json({ success: false, error: 'Media not found' });
+        }
+
+        // Authorization check
+        if (media.uploadedBy.toString() !== req.user.id && req.user.role !== 'admin') {
+            return res.status(401).json({ success: false, error: 'Not authorized' });
+        }
+
+        const { tags } = req.body;
+        if (!Array.isArray(tags)) {
+            return res.status(400).json({ success: false, error: 'Tags must be an array' });
+        }
+
+        // Ensure tags are cleaned (lowercase, trimmed)
+        media.tags = tags.map(t => t.trim().toLowerCase()).filter(t => t.length > 0);
+        await media.save();
+
+        res.status(200).json({ success: true, data: media });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ success: false, error: 'Server Error' });
+    }
+};
+
+// @desc    Get distinct values for filters (camera, location)
+// @route   GET /api/media/filters
+// @access  Private
+exports.getFilterOptions = async (req, res) => {
+    try {
+        const userId = req.user.id;
+
+        const [cameras, locations] = await Promise.all([
+            // Get distinct camera models
+            Media.aggregate([
+                { $match: { uploadedBy: new mongoose.Types.ObjectId(userId) } },
+                {
+                    $group: {
+                        _id: null,
+                        rootCameras: { $addToSet: '$camera.model' },
+                        metaCameras: { $addToSet: '$metadata.exif.camera' }
+                    }
+                },
+                {
+                    $project: {
+                        all: { $setUnion: ['$rootCameras', '$metaCameras'] }
+                    }
+                }
+            ]),
+            // Get distinct location names
+            Media.aggregate([
+                { $match: { uploadedBy: new mongoose.Types.ObjectId(userId) } },
+                {
+                    $group: {
+                        _id: null,
+                        rootLocations: { $addToSet: '$location.name' },
+                        metaCities: { $addToSet: '$metadata.location.city' },
+                        metaPlaces: { $addToSet: '$metadata.location.placeName' }
+                    }
+                },
+                {
+                    $project: {
+                        all: { $setUnion: ['$rootLocations', '$metaCities', '$metaPlaces'] }
+                    }
+                }
+            ])
+        ]);
+
+        const formatFilter = (arr) => (arr && arr[0]?.all ? arr[0].all.filter(Boolean).sort() : []);
+
+        res.status(200).json({
+            success: true,
+            data: {
+                cameras: formatFilter(cameras),
+                locations: formatFilter(locations)
+            }
+        });
+    } catch (err) {
+        console.error('Filter Options Error:', err);
         res.status(500).json({ success: false, error: 'Server Error' });
     }
 };

@@ -35,6 +35,49 @@ const ImageDetailsModal = ({ image, onClose, onUpdate, onDelete, albums = [] }) 
         }
     };
 
+    const handleAddTag = async (e) => {
+        if (e) e.preventDefault();
+        const tag = tagInput.trim().toLowerCase();
+        if (!tag) return;
+
+        // Prevent duplicate local tags
+        if (image.tags?.includes(tag)) {
+            setTagInput('');
+            return;
+        }
+
+        const newTags = [...(image.tags || []), tag];
+        setIsUpdating(true);
+
+        try {
+            const res = await api.put(`/media/${image._id}/tags`, { tags: newTags });
+            if (onUpdate) {
+                onUpdate(res.data.data);
+            }
+            setTagInput('');
+        } catch (err) {
+            alert('Failed to update tags');
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
+    const handleRemoveTag = async (tagToRemove) => {
+        const newTags = image.tags.filter(t => t !== tagToRemove);
+        setIsUpdating(true);
+
+        try {
+            const res = await api.put(`/media/${image._id}/tags`, { tags: newTags });
+            if (onUpdate) {
+                onUpdate(res.data.data);
+            }
+        } catch (err) {
+            alert('Failed to remove tag');
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
     const formatDate = (dateString) => {
         return new Date(dateString).toLocaleDateString(undefined, {
             year: 'numeric',
@@ -237,13 +280,13 @@ const ImageDetailsModal = ({ image, onClose, onUpdate, onDelete, albums = [] }) 
                                             <div>
                                                 <p className="text-[10px] uppercase font-bold text-textSecondary tracking-widest leading-none mb-1">Location</p>
                                                 <h3 className="text-sm font-bold text-textMain leading-tight">
-                                                    {image.metadata.location.placeName || image.metadata.location.city || 'Exact Location'}
+                                                    {image.location?.name || image.metadata?.location?.placeName || image.metadata?.location?.city || 'Exact Location'}
                                                 </h3>
                                             </div>
                                         </div>
-                                        {image.metadata.location.lat && image.metadata.location.lng && (
+                                        {(image.location?.latitude || image.metadata?.location?.lat) && (image.location?.longitude || image.metadata?.location?.lng) && (
                                             <a
-                                                href={`https://www.google.com/maps/search/?api=1&query=${image.metadata.location.lat},${image.metadata.location.lng}`}
+                                                href={`https://www.google.com/maps/search/?api=1&query=${image.location?.latitude || image.metadata.location.lat},${image.location?.longitude || image.metadata.location.lng}`}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center text-textSecondary hover:text-primary transition-colors"
@@ -254,7 +297,7 @@ const ImageDetailsModal = ({ image, onClose, onUpdate, onDelete, albums = [] }) 
                                         )}
                                     </div>
                                     <div className="relative h-40 bg-gray-50 rounded-lg overflow-hidden border border-borderColor mb-3">
-                                        {image.metadata.location.lat && image.metadata.location.lng ? (
+                                        {(image.location?.latitude || image.metadata?.location?.lat) && (image.location?.longitude || image.metadata?.location?.lng) ? (
                                             <iframe
                                                 title="Location Map"
                                                 width="100%"
@@ -263,7 +306,7 @@ const ImageDetailsModal = ({ image, onClose, onUpdate, onDelete, albums = [] }) 
                                                 scrolling="no"
                                                 marginHeight="0"
                                                 marginWidth="0"
-                                                src={`https://www.openstreetmap.org/export/embed.html?bbox=${image.metadata.location.lng - 0.01}%2C${image.metadata.location.lat - 0.01}%2C${image.metadata.location.lng + 0.01}%2C${image.metadata.location.lat + 0.01}&layer=mapnik&marker=${image.metadata.location.lat}%2C${image.metadata.location.lng}`}
+                                                src={`https://www.openstreetmap.org/export/embed.html?bbox=${(image.location?.longitude || image.metadata.location.lng) - 0.01}%2C${(image.location?.latitude || image.metadata.location.lat) - 0.01}%2C${(image.location?.longitude || image.metadata.location.lng) + 0.01}%2C${(image.location?.latitude || image.metadata.location.lat) + 0.01}&layer=mapnik&marker=${image.location?.latitude || image.metadata.location.lat}%2C${image.location?.longitude || image.metadata.location.lng}`}
                                                 className="grayscale-[0.2] contrast-[1.1]"
                                             ></iframe>
                                         ) : (
@@ -274,7 +317,7 @@ const ImageDetailsModal = ({ image, onClose, onUpdate, onDelete, albums = [] }) 
                                         )}
                                     </div>
                                     <p className="text-xs text-textSecondary leading-relaxed italic">
-                                        {image.metadata.location.address || [image.metadata.location.city, image.metadata.location.country].filter(Boolean).join(', ')}
+                                        {image.location?.address || image.metadata?.location?.address || [image.metadata?.location?.city, image.metadata?.location?.country].filter(Boolean).join(', ')}
                                     </p>
                                 </motion.div>
                             )}
@@ -293,7 +336,7 @@ const ImageDetailsModal = ({ image, onClose, onUpdate, onDelete, albums = [] }) 
                                         <div>
                                             <p className="text-[10px] text-textSecondary font-medium mb-0.5">Camera</p>
                                             <p className="text-[11px] font-bold text-textMain truncate flex items-center gap-1.5">
-                                                <Cpu className="w-3 h-3 text-gray-300" /> {image.metadata.exif.camera || 'Unknown Device'}
+                                                <Cpu className="w-3 h-3 text-gray-300" /> {image.camera?.model || image.metadata?.exif?.camera || 'Unknown Device'}
                                             </p>
                                         </div>
                                         <div>
@@ -369,8 +412,12 @@ const ImageDetailsModal = ({ image, onClose, onUpdate, onDelete, albums = [] }) 
 
                                 <div className="flex flex-wrap gap-1.5 mb-4">
                                     {image.tags?.length > 0 ? image.tags.map((tag, i) => (
-                                        <span key={i} className="px-3 py-1.5 rounded-full bg-gray-50 text-textMain text-[11px] font-bold border border-borderColor hover:border-primary hover:bg-white transition-all cursor-default">
+                                        <span key={i} className="px-3 py-1.5 rounded-full bg-gray-50 text-textMain text-[11px] font-bold border border-borderColor hover:border-danger/30 hover:bg-red-50 transition-all cursor-pointer group/tag relative"
+                                            onClick={() => handleRemoveTag(tag)}
+                                            title="Click to remove"
+                                        >
                                             #{tag}
+                                            <X className="w-2.5 h-2.5 absolute -top-1 -right-1 bg-danger text-white rounded-full opacity-0 group-hover/tag:opacity-100 transition-opacity" />
                                         </span>
                                     )) : (
                                         <p className="text-xs text-textSecondary italic">No tags associated.</p>
@@ -382,11 +429,17 @@ const ImageDetailsModal = ({ image, onClose, onUpdate, onDelete, albums = [] }) 
                                         type="text"
                                         value={tagInput}
                                         onChange={(e) => setTagInput(e.target.value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleAddTag(e)}
                                         placeholder="Add custom tag..."
-                                        className="w-full bg-gray-50 border border-borderColor rounded-lg px-3 py-2 text-xs focus:bg-white focus:border-primary outline-none transition-all pr-12 font-medium"
+                                        disabled={isUpdating}
+                                        className="w-full bg-gray-50 border border-borderColor rounded-lg px-3 py-2 text-xs focus:bg-white focus:border-primary outline-none transition-all pr-12 font-medium disabled:opacity-50"
                                     />
-                                    <button className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-md bg-white border border-borderColor text-primary opacity-0 group-focus-within:opacity-100 transition-opacity shadow-sm hover:bg-primary hover:text-white">
-                                        <Edit3 className="w-3.5 h-3.5" />
+                                    <button
+                                        onClick={handleAddTag}
+                                        disabled={isUpdating || !tagInput.trim()}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-md bg-white border border-borderColor text-primary opacity-0 group-focus-within:opacity-100 transition-opacity shadow-sm hover:bg-primary hover:text-white disabled:opacity-0"
+                                    >
+                                        <PlusCircle className="w-3.5 h-3.5" />
                                     </button>
                                 </div>
                             </motion.div>

@@ -14,6 +14,7 @@ const Upload = () => {
     const [manualLocation, setManualLocation] = useState('');
     const [locationData, setLocationData] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [sharedTags, setSharedTags] = useState('');
     const { albums, refreshAlbums, addAlbum, loading: fetchingAlbums } = useAlbums();
     const [progress, setProgress] = useState(0);
     const [error, setError] = useState('');
@@ -86,6 +87,10 @@ const Upload = () => {
             formData.append('locationData', JSON.stringify(locationData));
         } else if (manualLocation.trim()) {
             formData.append('location', manualLocation.trim());
+        }
+
+        if (sharedTags.trim()) {
+            formData.append('tags', sharedTags.trim());
         }
 
         setLoading(true);
@@ -257,6 +262,21 @@ const Upload = () => {
                                     }}
                                 />
                                 <p className="text-[10px] text-textSecondary mt-2 leading-relaxed">This will override or add to any EXIF location data.</p>
+                            </div>
+
+                            <div className="pt-4 border-t border-borderColor/50">
+                                <label className="block text-[10px] font-bold text-textSecondary uppercase tracking-widest mb-2.5">Shared Tags (Optional)</label>
+                                <div className="relative group">
+                                    <Plus className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-textSecondary group-focus-within:text-primary transition-colors" />
+                                    <input
+                                        type="text"
+                                        value={sharedTags}
+                                        onChange={(e) => setSharedTags(e.target.value)}
+                                        placeholder="nature, travel, beach..."
+                                        className="w-full pl-9 pr-3.5 py-2.5 rounded-xl text-sm bg-bg border border-borderColor focus:border-primary outline-none transition-all"
+                                    />
+                                </div>
+                                <p className="text-[10px] text-textSecondary mt-2 leading-relaxed">Comma-separated tags will be applied to all uploaded files.</p>
                             </div>
                         </div>
                     </div>

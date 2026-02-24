@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AlbumProvider } from './context/AlbumContext';
 import Navbar from './components/Navbar';
@@ -14,6 +14,7 @@ import Error500 from './pages/Error500';
 import Profile from './pages/Profile';
 import Loader3D from './components/Loader3D';
 import OnboardingTour from './components/OnboardingTour';
+import MainLayout from './components/MainLayout';
 
 // Only show loader once per browser session
 const shouldShowLoader = () => !sessionStorage.getItem('loaderShown');
@@ -27,13 +28,13 @@ const Spinner = () => (
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useAuth();
   if (loading) return <Spinner />;
-  return user ? children : <Navigate to="/login" replace />;
+  return user ? (children || <Outlet />) : <Navigate to="/login" replace />;
 };
 
 const AdminRoute = ({ children }) => {
   const { user, loading } = useAuth();
   if (loading) return <Spinner />;
-  return user && user.role === 'admin' ? children : <Navigate to="/" replace />;
+  return user && user.role === 'admin' ? (children || <Outlet />) : <Navigate to="/" replace />;
 };
 
 const App = () => {
@@ -50,42 +51,39 @@ const App = () => {
         {/* 3D Loader — renders on top; fades out via framer-motion */}
         {!loaderDone && <Loader3D onComplete={handleLoaderComplete} />}
 
-        {/* Main app — visible once loader completes */}
+        {/* Global Layout logic */}
         <div
-          className="flex flex-col min-h-screen bg-bg font-sans text-textMain"
+          className="min-h-screen bg-bg font-sans text-textMain transition-opacity duration-500"
           style={{
             opacity: loaderDone ? 1 : 0,
-            transition: 'opacity 0.5s ease',
             pointerEvents: loaderDone ? 'auto' : 'none',
           }}
         >
-          <Navbar />
-          <main className="flex-grow flex flex-col">
-            <Routes>
-              {/* Public routes */}
-              <Route path="/login" element={<Login />} />
+          <Routes>
+            {/* Public routes */}
+            <Route path="/login" element={<Login />} />
 
-              {/* Private routes */}
-              <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
-              <Route path="/upload" element={<PrivateRoute><Upload /></PrivateRoute>} />
-              <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
+            {/* Authenticated routes wrapped in MainLayout */}
+            <Route element={<PrivateRoute><MainLayout /></PrivateRoute>}>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/upload" element={<Upload />} />
+              <Route path="/profile" element={<Profile />} />
 
-              {/* Admin-only routes */}
-              <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
-              <Route path="/admin/add-user" element={<AdminRoute><AdminAddUser /></AdminRoute>} />
+              {/* Admin-only routes also inside MainLayout */}
+              <Route element={<AdminRoute />}>
+                <Route path="/admin" element={<AdminDashboard />} />
+                <Route path="/admin/add-user" element={<AdminAddUser />} />
+              </Route>
+            </Route>
 
-              {/* Error pages */}
-              <Route path="/400" element={<Error400 />} />
-              <Route path="/500" element={<Error500 />} />
-              <Route path="/404" element={<Error404 />} />
+            {/* Error pages and Catch-all */}
+            <Route path="/400" element={<Error400 />} />
+            <Route path="/500" element={<Error500 />} />
+            <Route path="/404" element={<Error404 />} />
+            <Route path="/register" element={<Navigate to="/login" replace />} />
+            <Route path="*" element={<Error404 />} />
+          </Routes>
 
-              {/* Redirect /register to login */}
-              <Route path="/register" element={<Navigate to="/login" replace />} />
-
-              {/* Catch-all 404 */}
-              <Route path="*" element={<Error404 />} />
-            </Routes>
-          </main>
           <OnboardingTour />
         </div>
       </AlbumProvider>

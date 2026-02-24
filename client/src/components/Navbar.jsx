@@ -1,12 +1,15 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, Upload, Camera, User, LayoutDashboard, ShieldCheck, UserPlus, Sparkles } from 'lucide-react';
+import { LogOut, Upload, Camera, User, LayoutDashboard, ShieldCheck, UserPlus, Sparkles, Search } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 
 const Navbar = () => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
     const [isScrolled, setIsScrolled] = React.useState(false);
+    const [searchParams, setSearchParams] = useSearchParams();
+    const [searchQuery, setSearchQuery] = React.useState(searchParams.get('q') || '');
 
     React.useEffect(() => {
         const handleScroll = () => setIsScrolled(window.scrollY > 20);
@@ -14,92 +17,73 @@ const Navbar = () => {
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
 
+    // Debounce search update to URL
+    React.useEffect(() => {
+        const timer = setTimeout(() => {
+            const currentQ = searchParams.get('q') || '';
+            if (searchQuery !== currentQ) {
+                if (searchQuery) {
+                    setSearchParams({ q: searchQuery });
+                } else {
+                    const newParams = new URLSearchParams(searchParams);
+                    newParams.delete('q');
+                    setSearchParams(newParams);
+                }
+            }
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [searchQuery, setSearchParams, searchParams]);
+
+    const handleSearch = (e) => {
+        setSearchQuery(e.target.value);
+        if (window.location.pathname !== '/') {
+            navigate(`/?q=${e.target.value}`);
+        }
+    };
+
     const handleLogout = () => { logout(); navigate('/login'); };
 
     return (
-        <nav className={`sticky top-0 z-[100] border-b transition-all duration-500 ${isScrolled
-            ? 'bg-white/80 backdrop-blur-2xl border-borderColor/40 shadow-xl shadow-black/5 py-1'
-            : 'bg-white/40 backdrop-blur-md border-transparent py-3'
+        <nav className={`md:hidden sticky top-0 z-[100] border-b transition-all duration-300 ${isScrolled
+            ? 'bg-white/90 backdrop-blur-xl border-borderColor/20 shadow-lg py-2'
+            : 'bg-white border-transparent py-4'
             }`}>
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex justify-between items-center h-20">
+            <div className="max-w-7xl mx-auto px-6">
+                <div className="flex justify-between items-center h-14">
                     {/* Brand Section */}
-                    <Link to="/" className="flex items-center gap-3.5 group relative">
-                        <div className="relative">
-                            <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-primary shadow-lg shadow-primary/20 rotate-0 group-hover:rotate-12 transition-all duration-500">
-                                <Camera className="w-5 h-5 text-textMain" />
-                            </div>
-                            <div className="absolute -inset-1 bg-primary/20 rounded-2xl blur opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <Link to="/" className="flex items-center gap-2 group">
+                        <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-primary shadow-lg shadow-primary/20 transition-transform active:scale-95">
+                            <Camera className="w-4 h-4 text-textMain" />
                         </div>
-                        <div>
-                            <span className="font-black text-textMain text-xl tracking-tighter flex items-center">
-                                PIX<span className="text-primary italic">AI</span>
-                            </span>
-                            <p className="text-[9px] text-textSecondary font-medium tracking-widest uppercase -mt-0.5">Powered by MIG</p>
-                        </div>
+                        <span className="font-black text-textMain text-lg tracking-tighter">
+                            PIX<span className="text-primary italic">AI</span>
+                        </span>
                     </Link>
 
-                    {/* Navigation Actions */}
-                    <div className="flex items-center gap-2">
+                    {/* Quick Actions (Mobile Right) */}
+                    <div className="flex items-center gap-4">
                         {user ? (
                             <>
-                                <div className="hidden md:flex items-center gap-1 mr-4 pr-4 border-r border-borderColor/50">
-                                    <NavLink id="nav-dashboard" to="/" icon={<LayoutDashboard className="w-4 h-4" />} label="Dashboard" />
-                                    <NavLink id="nav-upload" to="/upload" icon={<Upload className="w-4 h-4" />} label="Upload" />
-
-                                    {user.role === 'admin' && (
-                                        <>
-                                            <NavLink to="/admin" icon={<ShieldCheck className="w-4 h-4" />} label="Admin" />
-                                            <NavLink to="/admin/add-user" icon={<UserPlus className="w-4 h-4" />} label="Add User" />
-                                        </>
-                                    )}
-                                </div>
-
-                                <div className="flex items-center gap-4">
-                                    <Link id="profile-section" to="/profile" className="flex items-center gap-3 pl-2 group">
-                                        <div className="flex flex-col items-end hidden sm:block">
-                                            <span className="text-xs font-black text-textMain leading-none group-hover:text-primary transition-colors">{user.username}</span>
-                                            <span className="text-[9px] font-bold text-textSecondary uppercase tracking-widest mt-1">{user.role}</span>
-                                        </div>
-                                        <div className="relative">
-                                            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-gray-50 to-gray-200 border-2 border-white shadow-md overflow-hidden group-hover:border-primary transition-all">
-                                                {user.profilePhoto ? (
-                                                    <img src={user.profilePhoto} alt="Profile" className="w-full h-full object-cover" />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center bg-primary/10">
-                                                        <User className="w-5 h-5 text-textMain" />
-                                                    </div>
-                                                )}
+                                <Link to="/?search=true" className="p-2 text-textSecondary active:text-primary transition-colors">
+                                    <Search className="w-5 h-5" />
+                                </Link>
+                                <Link to="/upload" className="p-2 text-textSecondary active:text-primary transition-colors">
+                                    <Upload className="w-5 h-5" />
+                                </Link>
+                                <Link to="/profile" className="p-2 ml-1">
+                                    <div className="w-8 h-8 rounded-full border-2 border-primary/20 overflow-hidden active:border-primary transition-all">
+                                        {user.profilePhoto ? (
+                                            <img src={user.profilePhoto} alt="Profile" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center bg-primary/5">
+                                                <User className="w-4 h-4 text-textMain" />
                                             </div>
-                                            {user.role === 'admin' && (
-                                                <div className="absolute -top-1 -right-1 w-4 h-4 bg-danger rounded-full border-2 border-white flex items-center justify-center">
-                                                    <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
-                                                </div>
-                                            )}
-                                        </div>
-                                    </Link>
-
-                                    <div className="flex items-center gap-2 ml-2">
-                                        <button
-                                            onClick={() => window.dispatchEvent(new CustomEvent('restartTour'))}
-                                            className="w-9 h-9 flex items-center justify-center rounded-xl text-textSecondary hover:text-primary hover:bg-primary/10 transition-all group"
-                                            title="Start Tour"
-                                        >
-                                            <Sparkles className="w-4 h-4 group-hover:rotate-12 transition-transform" />
-                                        </button>
-                                        <button
-                                            onClick={handleLogout}
-                                            className="w-9 h-9 flex items-center justify-center rounded-xl text-textSecondary hover:text-danger hover:bg-red-50 transition-all group"
-                                            title="Logout"
-                                        >
-                                            <LogOut className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-                                        </button>
+                                        )}
                                     </div>
-                                </div>
+                                </Link>
                             </>
                         ) : (
-                            <Link to="/login"
-                                className="px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest text-textMain bg-primary hover:bg-secondary transition-all shadow-lg shadow-primary/20">
+                            <Link to="/login" className="text-[10px] font-black uppercase tracking-widest text-primary">
                                 Sign In
                             </Link>
                         )}

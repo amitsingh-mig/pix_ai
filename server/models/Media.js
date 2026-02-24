@@ -26,9 +26,29 @@ const MediaSchema = new mongoose.Schema({
         required: true
     },
     album: {
+        type: String,
+        trim: true
+    },
+    albumId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Album'
     },
+    description: {
+        type: String,
+        trim: true,
+        default: ''
+    },
+    location: {
+        name: String,
+        address: String,
+        latitude: Number,
+        longitude: Number
+    },
+    camera: {
+        make: String,
+        model: String
+    },
+    device: String,
     metadata: {
         size: Number,
         mimetype: String,
@@ -41,6 +61,8 @@ const MediaSchema = new mongoose.Schema({
             iso: Number,
             shutterSpeed: String,
             aperture: String,
+            make: String,
+            model: String
         },
         location: {
             lat: Number,
@@ -66,11 +88,21 @@ const MediaSchema = new mongoose.Schema({
 });
 
 // Indexes for performance (Phase 2)
-MediaSchema.index({ uploadedBy: 1 });
+MediaSchema.index({ tags: 1 });
 MediaSchema.index({ album: 1 });
+MediaSchema.index({
+    tags: "text",
+    album: "text",
+    title: "text",
+    description: "text",
+    "location.name": "text",
+    "location.address": "text",
+    "camera.make": "text",
+    "camera.model": "text",
+    device: "text"
+});
+MediaSchema.index({ uploadedBy: 1 });
 MediaSchema.index({ createdAt: -1 });
 MediaSchema.index({ type: 1 });
-MediaSchema.index({ tags: 1 });
-MediaSchema.index({ title: 'text', tags: 'text' }); // For text search
 
 module.exports = mongoose.model('Media', MediaSchema);

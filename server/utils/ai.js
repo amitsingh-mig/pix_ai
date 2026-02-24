@@ -38,7 +38,7 @@ exports.generateTags = async (mediaKey) => {
                 {
                     role: "user",
                     content: [
-                        { type: "text", text: "Generate 5 simple, single-word tags for this image. Return only the tags separated by commas, no other text." },
+                        { type: "text", text: "Generate 5 simple, single-word tags for this image. Focus on objects like flower, street, animal, car, sky, person, nature, etc. Return only the tags separated by commas, no other text." },
                         {
                             type: "image_url",
                             image_url: {

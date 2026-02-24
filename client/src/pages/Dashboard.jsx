@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { motion } from 'framer-motion';
-import { Search, Layers, ChevronLeft, ChevronRight, Folder, ArrowLeft, Plus, Edit2, Trash2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Search, Layers, ChevronLeft, ChevronRight, Folder, ArrowLeft, Plus, Edit2, Trash2, Filter, X, Calendar, Camera, MapPin, RefreshCw } from 'lucide-react';
 import MediaCard from '../components/MediaCard';
 import AlbumCard from '../components/AlbumCard';
 import ImageDetailsModal from '../components/ImageDetailsModal';
@@ -10,6 +10,7 @@ import FakeCursor from "../components/FakeCursor";
 import AIAssistant from "../components/AIAssistant";
 import NavigationPath from '../components/NavigationPath';
 import { useAlbums } from '../context/AlbumContext';
+import { useSearchParams } from 'react-router-dom';
 
 const TABS = [
     { label: 'All', value: '' },
@@ -21,11 +22,33 @@ const TABS = [
 const Dashboard = () => {
     const [media, setMedia] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [search, setSearch] = useState('');
-    const [debouncedSearch, setDebouncedSearch] = useState('');
-    const [typeFilter, setTypeFilter] = useState('');
+    const [searchParams, setSearchParams] = useSearchParams();
+    const urlQuery = searchParams.get('q') || '';
+    const initialTab = searchParams.get('tab') || ''; // Changed 'all' to '' to match TABS structure for 'All'
+
+    const [typeFilter, setTypeFilter] = useState(initialTab);
     const [currentAlbum, setCurrentAlbum] = useState(null);
     const [page, setPage] = useState(1);
+    const [filterOptions, setFilterOptions] = useState({ cameras: [], locations: [] });
+    const [activeFilters, setActiveFilters] = useState({
+        camera: '',
+        location: '',
+        startDate: '',
+        endDate: ''
+    });
+    const [stagedFilters, setStagedFilters] = useState({
+        camera: '',
+        location: '',
+        startDate: '',
+        endDate: ''
+    });
+    const [showFilters, setShowFilters] = useState(false);
+
+    // Reset page when search query changes to avoid stuck on high pages
+    useEffect(() => {
+        setPage(1);
+    }, [urlQuery]);
+
     const [totalPages, setTotalPages] = useState(1);
     const [totalCount, setTotalCount] = useState(0);
     const [selectedImage, setSelectedImage] = useState(null);
@@ -43,24 +66,53 @@ const Dashboard = () => {
         jumpToPath
     } = useAlbums();
 
-    // Debounce search
+    // Auto-open filters if ?search=true is present
     useEffect(() => {
-        const timer = setTimeout(() => {
-            setDebouncedSearch(search);
-        }, 600);
-        return () => clearTimeout(timer);
-    }, [search]);
+        if (searchParams.get('search') === 'true') {
+            setShowFilters(true);
+            setStagedFilters(activeFilters);
+        }
+        if (searchParams.get('tab')) {
+            setTypeFilter(searchParams.get('tab'));
+            setCurrentAlbum(null);
+        }
+    }, [searchParams]);
 
-    const fetchMedia = useCallback(async (q = debouncedSearch, type = typeFilter, p = page, albumId = currentAlbum?._id) => {
+    // Debounce search
+    // useEffect(() => {
+    //     const timer = setTimeout(() => {
+    //         setDebouncedSearch(search);
+    //     }, 600);
+    //     return () => clearTimeout(timer);
+    // }, [search]);
+
+    const fetchMedia = useCallback(async (q = urlQuery, type = typeFilter, p = page, albumId = currentAlbum?._id, filters = activeFilters) => {
         setLoading(true);
         try {
             const params = new URLSearchParams();
-            if (q) params.set('search', q);
-            if (type && type !== 'albums') params.set('type', type);
-            if (albumId) params.set('albumId', albumId);
             params.set('page', p);
-            params.set('limit', 24);
-            const res = await api.get(`/media?${params}`);
+
+            let endpoint = '/media';
+
+            // If we have a general search query, use the search endpoint
+            if (q) {
+                endpoint = '/media/search';
+                params.set('q', q);
+                params.set('limit', 50);
+            } else {
+                if (type && type !== 'albums') params.set('type', type);
+                if (albumId) params.set('albumId', albumId);
+
+                // Add Multi-Filters
+                if (filters.camera) params.set('camera', filters.camera);
+                if (filters.location) params.set('location', filters.location);
+                if (filters.startDate) params.set('startDate', filters.startDate);
+                if (filters.endDate) params.set('endDate', filters.endDate);
+
+                params.set('limit', 24);
+            }
+
+            const res = await api.get(`${endpoint}?${params}`);
             setMedia(res.data.data);
             setTotalPages(res.data.pages || 1);
             setTotalCount(res.data.total || 0);
@@ -69,14 +121,27 @@ const Dashboard = () => {
         } finally {
             setLoading(false);
         }
-    }, [debouncedSearch, typeFilter, page, currentAlbum]);
+    }, [urlQuery, typeFilter, page, currentAlbum, activeFilters]);
+
+    const fetchFilterOptions = useCallback(async () => {
+        try {
+            const res = await api.get('/media/filters');
+            setFilterOptions(res.data.data);
+        } catch (err) {
+            console.error('Failed to fetch filter options', err);
+        }
+    }, []);
 
     useEffect(() => {
-        fetchMedia(debouncedSearch, typeFilter, page, currentAlbum?._id);
+        if (user) fetchFilterOptions();
+    }, [user, fetchFilterOptions]);
+
+    useEffect(() => {
+        fetchMedia(urlQuery, typeFilter, page, currentAlbum?._id, activeFilters);
         if (currentAlbum) {
             addToPath(currentAlbum);
         }
-    }, [page, typeFilter, currentAlbum, debouncedSearch, fetchMedia, addToPath]);
+    }, [page, typeFilter, currentAlbum, urlQuery, fetchMedia, addToPath, activeFilters]);
 
     const handleSearch = (e) => {
         e.preventDefault();
@@ -202,6 +267,20 @@ const Dashboard = () => {
 
                 {/* Sub-header actions / Interface */}
                 <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => {
+                            setShowFilters(!showFilters);
+                            if (!showFilters) setStagedFilters(activeFilters);
+                        }}
+                        className={`flex items-center gap-2.5 px-6 py-3.5 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all shadow-sm border ${showFilters ? 'bg-primary border-primary text-textMain' : 'bg-white border-borderColor/50 text-textSecondary hover:border-primary/30'}`}
+                    >
+                        <Filter className={`w-4 h-4 ${showFilters ? 'animate-pulse' : ''}`} />
+                        <span>Filters</span>
+                        {Object.values(activeFilters).some(v => v) && (
+                            <span className="w-2 h-2 rounded-full bg-accent animate-bounce" />
+                        )}
+                    </button>
+
                     {typeFilter === 'albums' && !currentAlbum && (
                         <button
                             onClick={handleCreateAlbum}
@@ -211,31 +290,114 @@ const Dashboard = () => {
                             <span>New Collection</span>
                         </button>
                     )}
-
-                    {/* Search / Perception Filter */}
-                    {(typeFilter !== 'albums' || currentAlbum) && (
-                        <form onSubmit={handleSearch} className="flex items-center gap-3 w-full sm:w-auto">
-                            <div className="relative flex-grow sm:w-80 group">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-textSecondary group-focus-within:text-primary transition-colors" />
-                                <input
-                                    id="search-bar"
-                                    type="text"
-                                    className="w-full bg-white border border-borderColor/50 rounded-2xl py-3.5 pl-12 pr-4 text-sm font-medium focus:bg-white focus:border-primary/50 focus:ring-4 focus:ring-primary/5 transition-all outline-none"
-                                    placeholder="Search library..."
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                />
-                            </div>
-                            <button
-                                type="submit"
-                                className="px-6 py-3.5 rounded-2xl text-[11px] font-black uppercase tracking-widest text-textMain bg-white border border-borderColor/50 hover:bg-primary hover:border-primary transition-all shadow-sm"
-                            >
-                                Search
-                            </button>
-                        </form>
-                    )}
                 </div>
             </motion.div>
+
+            {/* Advanced Filter Bar */}
+            <AnimatePresence>
+                {showFilters && (
+                    <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden mb-8"
+                    >
+                        <div className="bg-white border border-borderColor/50 rounded-[24px] p-6 shadow-sm flex flex-col gap-6">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-xs font-black uppercase tracking-widest text-textSecondary flex items-center gap-2">
+                                    <Layers className="w-3 h-3" /> Refining Search
+                                </h3>
+                                {(activeFilters.camera || activeFilters.location || activeFilters.startDate || activeFilters.endDate) && (
+                                    <button
+                                        onClick={() => {
+                                            const cleared = { camera: '', location: '', startDate: '', endDate: '' };
+                                            setStagedFilters(cleared);
+                                            setActiveFilters(cleared);
+                                        }}
+                                        className="text-[10px] font-bold text-accent uppercase tracking-widest flex items-center gap-1.5 hover:underline"
+                                    >
+                                        <RefreshCw className="w-3 h-3" /> Reset
+                                    </button>
+                                )}
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                {/* Camera Filter */}
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-textSecondary uppercase tracking-widest flex items-center gap-1.5 pl-1">
+                                        <Camera className="w-3 h-3" /> Camera Model
+                                    </label>
+                                    <select
+                                        value={stagedFilters.camera}
+                                        onChange={(e) => setStagedFilters(prev => ({ ...prev, camera: e.target.value }))}
+                                        className="w-full bg-bg border border-borderColor/50 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-primary/20 outline-none transition-all appearance-none cursor-pointer"
+                                    >
+                                        <option value="">Any Camera</option>
+                                        {filterOptions.cameras.map(c => (
+                                            <option key={c} value={c}>{c}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Location Filter */}
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-textSecondary uppercase tracking-widest flex items-center gap-1.5 pl-1">
+                                        <MapPin className="w-3 h-3" /> Location
+                                    </label>
+                                    <select
+                                        value={stagedFilters.location}
+                                        onChange={(e) => setStagedFilters(prev => ({ ...prev, location: e.target.value }))}
+                                        className="w-full bg-bg border border-borderColor/50 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-primary/20 outline-none transition-all appearance-none cursor-pointer"
+                                    >
+                                        <option value="">Any Location</option>
+                                        {filterOptions.locations.map(l => (
+                                            <option key={l} value={l}>{l}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Date Range */}
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-textSecondary uppercase tracking-widest flex items-center gap-1.5 pl-1">
+                                        <Calendar className="w-3 h-3" /> Start Date
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={stagedFilters.startDate}
+                                        onChange={(e) => setStagedFilters(prev => ({ ...prev, startDate: e.target.value }))}
+                                        className="w-full bg-bg border border-borderColor/50 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-primary/20 outline-none transition-all cursor-pointer"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-textSecondary uppercase tracking-widest flex items-center gap-1.5 pl-1">
+                                        <Calendar className="w-3 h-3" /> End Date
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={stagedFilters.endDate}
+                                        onChange={(e) => setStagedFilters(prev => ({ ...prev, endDate: e.target.value }))}
+                                        className="w-full bg-bg border border-borderColor/50 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-primary/20 outline-none transition-all cursor-pointer"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end pt-2 border-t border-borderColor/30">
+                                <button
+                                    onClick={() => {
+                                        setActiveFilters(stagedFilters);
+                                        setShowFilters(false);
+                                    }}
+                                    className="flex items-center gap-2 px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest text-textMain bg-primary hover:bg-secondary transition-all shadow-lg active:scale-95"
+                                >
+                                    <Filter className="w-4 h-4" />
+                                    <span>Apply Filters</span>
+                                </button>
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* Navigation Path (Breadcrumbs) */}
             <NavigationPath

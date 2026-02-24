@@ -14,14 +14,19 @@ const MediaCard = ({ item, user, onDelete, onClick }) => {
                     <video src={item.url} preload="none" className="w-full h-full object-cover" />
                 )}
 
+                {/* Album badge */}
+                {item.album && (
+                    <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-md text-white text-[10px] px-2.5 py-1 rounded-lg font-black uppercase tracking-wider z-10 border border-white/10 shadow-lg">
+                        {item.album}
+                    </div>
+                )}
+
                 {/* Location badge */}
-                {item.metadata?.location && (item.metadata.location.city || item.metadata.location.placeName || item.metadata.location.country) && (
+                {(item.location?.name || item.metadata?.location) && (
                     <div className="media-card__location">
                         <MapPin className="w-3 h-3 flex-shrink-0" />
                         <span className="truncate">
-                            {item.metadata.location.placeName || item.metadata.location.city || ''}
-                            {(item.metadata.location.placeName || item.metadata.location.city) && item.metadata.location.country ? ', ' : ''}
-                            {item.metadata.location.country || ''}
+                            {item.location?.name || item.metadata?.location?.placeName || item.metadata?.location?.city || 'Location'}
                         </span>
                     </div>
                 )}

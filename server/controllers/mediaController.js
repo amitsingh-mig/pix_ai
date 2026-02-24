@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Media = require('../models/Media');
 const Album = require('../models/Album');
 const { isAWSConfigured, deleteFile } = require('../utils/s3');
@@ -14,7 +15,7 @@ const escapeRegex = (string) => {
 // @desc    Upload media (single or multiple)
 // @route   POST /api/media
 // @access  Private
-exports.uploadMedia = async (req, res) => {
+exports.uploadMedia = async (req, res, next) => {
     try {
         const files = req.files || (req.file ? [req.file] : []);
 
@@ -196,7 +197,7 @@ exports.uploadMedia = async (req, res) => {
 // @desc    Get all media (with search, type filter, pagination)
 // @route   GET /api/media
 // @access  Public
-exports.getMedia = async (req, res) => {
+exports.getMedia = async (req, res, next) => {
     try {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 12;
@@ -327,50 +328,51 @@ exports.getMedia = async (req, res) => {
 // @desc    Search media (Smart Search)
 // @route   GET /api/media/search
 // @access  Public
-exports.searchMedia = async (req, res) => {
+exports.searchMedia = async (req, res, next) => {
     try {
         const query = req.query.q || '';
-        if (!query) {
-            return res.status(200).json({ success: true, data: [], total: 0 });
-        }
-
         const keywords = query.split(/\s+/).filter(k => k.length > 0);
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 50;
         const skip = (page - 1) * limit;
 
-        // Smart Search Logic - Unified Multi-Field Search
-        const keywordRegexes = keywords.map(k => new RegExp(escapeRegex(k), 'i'));
+        const andFilters = [];
 
-        // Build an $and array where each element ensures ONE keyword matches AT LEAST ONE field
-        const andFilters = keywordRegexes.map(regex => ({
-            $or: [
-                { tags: { $in: [regex] } },
-                { album: regex },
-                { title: regex },
-                { description: regex },
-                { 'location.name': regex },
-                { 'location.address': regex },
-                { 'camera.make': regex },
-                { 'camera.model': regex },
-                { device: regex },
-                // Backward compatibility for metadata fields
-                { 'metadata.location.city': regex },
-                { 'metadata.location.country': regex },
-                { 'metadata.location.placeName': regex },
-                { 'metadata.location.address': regex },
-                { 'metadata.exif.camera': regex },
-                { 'metadata.exif.make': regex },
-                { 'metadata.exif.model': regex },
-                { 'metadata.device': regex }
-            ]
-        }));
+        // 1. Keyword Search (if any)
+        if (keywords.length > 0) {
+            const keywordRegexes = keywords.map(k => new RegExp(escapeRegex(k), 'i'));
+            const textFilters = keywordRegexes.map(regex => ({
+                $or: [
+                    { tags: { $in: [regex] } },
+                    { album: regex },
+                    { title: regex },
+                    { description: regex },
+                    { 'location.name': regex },
+                    { 'location.address': regex },
+                    { 'camera.make': regex },
+                    { 'camera.model': regex },
+                    { device: regex },
+                    { 'metadata.location.city': regex },
+                    { 'metadata.location.country': regex },
+                    { 'metadata.location.placeName': regex },
+                    { 'metadata.location.address': regex },
+                    { 'metadata.exif.camera': regex },
+                    { 'metadata.exif.make': regex },
+                    { 'metadata.exif.model': regex },
+                    { 'metadata.device': regex }
+                ]
+            }));
+            andFilters.push(...textFilters);
+        }
 
-        const filter = { $and: andFilters };
+        // 2. Album Scoping
+        if (req.query.albumId) {
+            andFilters.push({ albumId: req.query.albumId });
+        }
 
-        // Combine with discrete filters if provided (Combined filtering)
+        // 3. Discrete Filters (Camera, Location, Date)
         if (req.query.camera) {
-            filter.$and.push({
+            andFilters.push({
                 $or: [
                     { 'camera.model': req.query.camera },
                     { 'metadata.exif.camera': req.query.camera }
@@ -379,7 +381,7 @@ exports.searchMedia = async (req, res) => {
         }
 
         if (req.query.location) {
-            filter.$and.push({
+            andFilters.push({
                 $or: [
                     { 'location.name': req.query.location },
                     { 'metadata.location.city': req.query.location },
@@ -390,19 +392,26 @@ exports.searchMedia = async (req, res) => {
 
         if (req.query.startDate || req.query.endDate) {
             const dateRange = {};
-            if (req.query.startDate) dateRange.$gte = new Date(req.query.startDate);
-            if (req.query.endDate) {
-                const endDate = new Date(req.query.endDate);
-                endDate.setHours(23, 59, 59, 999);
-                dateRange.$lte = endDate;
+            if (req.query.startDate) {
+                const start = new Date(req.query.startDate);
+                start.setHours(0, 0, 0, 0);
+                dateRange.$gte = start;
             }
-            filter.$and.push({
+            if (req.query.endDate) {
+                const end = new Date(req.query.endDate);
+                end.setHours(23, 59, 59, 999);
+                dateRange.$lte = end;
+            }
+            andFilters.push({
                 $or: [
                     { 'metadata.exif.captureDate': dateRange },
                     { 'createdAt': dateRange }
                 ]
             });
         }
+
+        // If no filters at all, find all (or we could return empty, but for "Refining" find all makes sense)
+        const filter = andFilters.length > 0 ? { $and: andFilters } : {};
 
         const [media, total] = await Promise.all([
             Media.find(filter)
@@ -427,122 +436,14 @@ exports.searchMedia = async (req, res) => {
     }
 };
 
-// @desc    Get single media item
-// @route   GET /api/media/:id
-// @access  Public
-exports.getMediaById = async (req, res) => {
-    try {
-        const media = await Media.findById(req.params.id).populate('uploadedBy', 'username');
-        if (!media) {
-            return res.status(404).json({ success: false, error: 'Media not found' });
-        }
-        res.status(200).json({ success: true, data: media });
-    } catch (err) {
-        res.status(500).json({ success: false, error: 'Server Error' });
-    }
-};
-
-// @desc    Delete media
-// @route   DELETE /api/media/:id
-// @access  Private (owner or admin)
-exports.deleteMedia = async (req, res) => {
-    try {
-        const media = await Media.findById(req.params.id);
-
-        if (!media) {
-            return res.status(404).json({ success: false, error: 'Media not found' });
-        }
-
-        if (media.uploadedBy.toString() !== req.user.id && req.user.role !== 'admin') {
-            return res.status(401).json({ success: false, error: 'Not authorized' });
-        }
-
-        if (media.metadata && media.metadata.key) {
-            await deleteFile(media.metadata.key);
-        }
-
-        await media.deleteOne();
-        res.status(200).json({ success: true, data: {} });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ success: false, error: 'Server Error' });
-    }
-};
-
-// @desc    Update media album association
-// @route   PUT /api/media/:id/album
-// @access  Private
-exports.updateMediaAlbum = async (req, res) => {
-    try {
-        const media = await Media.findById(req.params.id);
-
-        if (!media) {
-            return res.status(404).json({ success: false, error: 'Media not found' });
-        }
-
-        // Authorization check
-        if (media.uploadedBy.toString() !== req.user.id && req.user.role !== 'admin') {
-            return res.status(401).json({ success: false, error: 'Not authorized' });
-        }
-
-        const albumId = req.body.albumId || null;
-        let albumName = null;
-        if (albumId) {
-            const album = await Album.findById(albumId);
-            if (album) albumName = album.name;
-        }
-
-        media.albumId = albumId;
-        media.album = albumName;
-        await media.save();
-
-        res.status(200).json({ success: true, data: media });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ success: false, error: 'Server Error' });
-    }
-};
-
-// @desc    Update media tags
-// @route   PUT /api/media/:id/tags
-// @access  Private
-exports.updateMediaTags = async (req, res) => {
-    try {
-        const media = await Media.findById(req.params.id);
-
-        if (!media) {
-            return res.status(404).json({ success: false, error: 'Media not found' });
-        }
-
-        // Authorization check
-        if (media.uploadedBy.toString() !== req.user.id && req.user.role !== 'admin') {
-            return res.status(401).json({ success: false, error: 'Not authorized' });
-        }
-
-        const { tags } = req.body;
-        if (!Array.isArray(tags)) {
-            return res.status(400).json({ success: false, error: 'Tags must be an array' });
-        }
-
-        // Ensure tags are cleaned (lowercase, trimmed)
-        media.tags = tags.map(t => t.trim().toLowerCase()).filter(t => t.length > 0);
-        await media.save();
-
-        res.status(200).json({ success: true, data: media });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ success: false, error: 'Server Error' });
-    }
-};
-
-// @desc    Get distinct values for filters (camera, location)
-// @route   GET /api/media/filters
+// @desc    Get distinct values for filters (camera, location, albums)
+// @route   GET /api/media/filter-options
 // @access  Private
 exports.getFilterOptions = async (req, res) => {
     try {
         const userId = req.user.id;
 
-        const [cameras, locations] = await Promise.all([
+        const [cameras, locations, albums] = await Promise.all([
             // Get distinct camera models
             Media.aggregate([
                 { $match: { uploadedBy: new mongoose.Types.ObjectId(userId) } },
@@ -575,7 +476,9 @@ exports.getFilterOptions = async (req, res) => {
                         all: { $setUnion: ['$rootLocations', '$metaCities', '$metaPlaces'] }
                     }
                 }
-            ])
+            ]),
+            // Get distinct albums
+            Album.find({ uploadedBy: userId }).distinct('name')
         ]);
 
         const formatFilter = (arr) => (arr && arr[0]?.all ? arr[0].all.filter(Boolean).sort() : []);
@@ -584,7 +487,8 @@ exports.getFilterOptions = async (req, res) => {
             success: true,
             data: {
                 cameras: formatFilter(cameras),
-                locations: formatFilter(locations)
+                locations: formatFilter(locations),
+                albums: albums.filter(Boolean).sort()
             }
         });
     } catch (err) {
@@ -592,3 +496,210 @@ exports.getFilterOptions = async (req, res) => {
         res.status(500).json({ success: false, error: 'Server Error' });
     }
 };
+
+// @desc    Get single media item
+// @route   GET /api/media/:id
+// @access  Public
+exports.getMediaById = async (req, res, next) => {
+    try {
+        const media = await Media.findById(req.params.id).populate('uploadedBy', 'username');
+        if (!media) {
+            return res.status(404).json({ success: false, error: 'Media not found' });
+        }
+        res.status(200).json({ success: true, data: media });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Delete media
+// @route   DELETE /api/media/:id
+// @access  Private (owner or admin)
+exports.deleteMedia = async (req, res, next) => {
+    try {
+        const media = await Media.findById(req.params.id);
+
+        if (!media) {
+            return res.status(404).json({ success: false, error: 'Media not found' });
+        }
+
+        if (media.uploadedBy.toString() !== req.user.id && req.user.role !== 'admin') {
+            return res.status(401).json({ success: false, error: 'Not authorized' });
+        }
+
+        // Delete main file
+        if (media.metadata && media.metadata.key) {
+            await deleteFile(media.metadata.key);
+        } else if (media.url) {
+            // Fallback for cases where key isn't explicitly set in metadata
+            await deleteFile(media.url);
+        }
+
+        // Delete thumbnail if it exists
+        if (media.thumbnailUrl) {
+            await deleteFile(media.thumbnailUrl);
+        }
+
+        await media.deleteOne();
+        res.status(200).json({ success: true, data: {} });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Auto-delete old media (Admin only)
+// @route   DELETE /api/media/cleanup
+// @access  Admin
+exports.cleanupOldMedia = async (req, res, next) => {
+    try {
+        const days = parseInt(req.query.days) || 30;
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - days);
+
+        console.log(`[CLEANUP] Starting cleanup for media older than ${days} days (Cutoff: ${cutoffDate.toISOString()})`);
+
+        // Find all media older than cutoff
+        const oldMedia = await Media.find({ createdAt: { $lt: cutoffDate } });
+
+        if (oldMedia.length === 0) {
+            return res.status(200).json({ success: true, message: 'No old media found for cleanup' });
+        }
+
+        let deletedCount = 0;
+        for (const item of oldMedia) {
+            try {
+                // Delete files
+                if (item.metadata && item.metadata.key) {
+                    await deleteFile(item.metadata.key);
+                } else if (item.url) {
+                    await deleteFile(item.url);
+                }
+
+                if (item.thumbnailUrl) {
+                    await deleteFile(item.thumbnailUrl);
+                }
+
+                // Delete record
+                await item.deleteOne();
+                deletedCount++;
+            } catch (err) {
+                console.error(`[CLEANUP ERROR] Failed to delete media ${item._id}:`, err.message);
+            }
+        }
+
+        res.status(200).json({
+            success: true,
+            message: `Successfully cleaned up ${deletedCount} old media items older than ${days} days.`
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Update media album association
+// @route   PUT /api/media/:id/album
+// @access  Private
+exports.updateMediaAlbum = async (req, res, next) => {
+    try {
+        const media = await Media.findById(req.params.id);
+
+        if (!media) {
+            return res.status(404).json({ success: false, error: 'Media not found' });
+        }
+
+        // Authorization check
+        if (media.uploadedBy.toString() !== req.user.id && req.user.role !== 'admin') {
+            return res.status(401).json({ success: false, error: 'Not authorized' });
+        }
+
+        const albumId = req.body.albumId || null;
+        let albumName = null;
+        if (albumId) {
+            const album = await Album.findById(albumId);
+            if (album) albumName = album.name;
+        }
+
+        media.albumId = albumId;
+        media.album = albumName;
+        await media.save();
+
+        res.status(200).json({ success: true, data: media });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Update media details (generic)
+// @route   PUT /api/media/:id
+// @access  Private
+exports.updateMedia = async (req, res, next) => {
+    try {
+        let media = await Media.findById(req.params.id);
+        if (!media) {
+            return res.status(404).json({ success: false, error: 'Media not found' });
+        }
+
+        // Authorization check
+        if (media.uploadedBy.toString() !== req.user.id && req.user.role !== 'admin') {
+            return res.status(401).json({ success: false, error: 'Not authorized' });
+        }
+
+        const { title, description, tags, camera, location } = req.body;
+
+        if (title) media.title = title;
+        if (description !== undefined) media.description = description;
+        if (Array.isArray(tags)) {
+            media.tags = tags.map(t => t.trim().toLowerCase()).filter(t => t.length > 0);
+        }
+
+        if (camera) {
+            if (!media.camera) media.camera = {};
+            if (camera.model) media.camera.model = camera.model;
+            if (camera.make) media.camera.make = camera.make;
+        }
+
+        if (location) {
+            if (!media.location) media.location = {};
+            if (location.name) media.location.name = location.name;
+            if (location.latitude !== undefined) media.location.latitude = location.latitude;
+            if (location.longitude !== undefined) media.location.longitude = location.longitude;
+        }
+
+        await media.save();
+        res.status(200).json({ success: true, data: media });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Update media tags
+// @route   PUT /api/media/:id/tags
+// @access  Private
+exports.updateMediaTags = async (req, res, next) => {
+    try {
+        const media = await Media.findById(req.params.id);
+
+        if (!media) {
+            return res.status(404).json({ success: false, error: 'Media not found' });
+        }
+
+        // Authorization check
+        if (media.uploadedBy.toString() !== req.user.id && req.user.role !== 'admin') {
+            return res.status(401).json({ success: false, error: 'Not authorized' });
+        }
+
+        const { tags } = req.body;
+        if (!Array.isArray(tags)) {
+            return res.status(400).json({ success: false, error: 'Tags must be an array' });
+        }
+
+        // Ensure tags are cleaned (lowercase, trimmed)
+        media.tags = tags.map(t => t.trim().toLowerCase()).filter(t => t.length > 0);
+        await media.save();
+
+        res.status(200).json({ success: true, data: media });
+    } catch (err) {
+        next(err);
+    }
+};
+

@@ -56,16 +56,31 @@ if (isAWSConfigured) {
 const upload = multer({ storage });
 
 const deleteFile = async (key) => {
-    // Detect storage type (assuming local for now as per instructions)
+    if (!key) return;
+
+    // Detect storage type
     if (!isAWSConfigured) {
         // Handle local file deletion
-        const filePath = path.join(__dirname, '..', key.startsWith('data/media') ? key : path.join('data', 'media', key));
+        // Key might look like: "2026-02/filename.jpg" or "/data/media/2026-02/filename.jpg"
+        // We want to ensure it targets server/data/media/relative_path
+
+        let localPath = key;
+        // Strip leading slash if present
+        if (localPath.startsWith('/')) {
+            localPath = localPath.substring(1);
+        }
+
+        // If it starts with data/media, it's already basically correct for our join
+        // If it doesn't, we need to join it properly
+        const basePath = localPath.startsWith('data/media') ? '' : path.join('data', 'media');
+        const filePath = path.join(__dirname, '..', basePath, localPath);
+
         try {
             if (fs.existsSync(filePath)) {
                 await fs.promises.unlink(filePath);
-                console.log(`✔ Local file deleted: ${key}`);
+                console.log(`✔ Local file deleted: ${filePath}`);
             } else {
-                console.log(`ℹ Local file not found: ${key} (Expected at: ${filePath})`);
+                console.log(`ℹ Local file not found: ${filePath}`);
             }
         } catch (err) {
             console.error(`✖ Error deleting local file (${key}):`, err.message);

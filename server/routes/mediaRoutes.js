@@ -8,13 +8,17 @@ const {
     updateMediaAlbum,
     searchMedia,
     updateMediaTags,
-    getFilterOptions
+    updateMedia,
+    getFilterOptions,
+    cleanupOldMedia
 } = require('../controllers/mediaController');
-const { protect } = require('../middleware/authMiddleware');
+const { protect, authorize } = require('../middleware/authMiddleware');
 const { upload } = require('../utils/s3');
 
 router.get('/search', searchMedia);
 router.get('/filters', protect, getFilterOptions);
+router.get('/filter-options', protect, getFilterOptions);
+router.delete('/cleanup', protect, authorize('admin'), cleanupOldMedia);
 
 router.route('/')
     .get(getMedia)
@@ -23,6 +27,7 @@ router.route('/')
 
 router.route('/:id')
     .get(getMediaById)
+    .put(protect, updateMedia)
     .delete(protect, deleteMedia);
 
 router.route('/:id/album')

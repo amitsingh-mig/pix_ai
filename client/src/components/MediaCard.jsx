@@ -1,7 +1,12 @@
 import React from 'react';
 import { ImageIcon, Video, Trash2, MapPin } from 'lucide-react';
 
-const MediaCard = ({ item, user, onDelete, onClick }) => {
+const MediaCard = ({ item, user, onDelete, onClick, onFilter }) => {
+    const handleFilterClick = (e, filterType, value) => {
+        e.stopPropagation();
+        if (onFilter) onFilter({ [filterType]: value });
+    };
+
     return (
         <div className="media-card group relative cursor-pointer" onClick={() => onClick(item)}>
             {/* Thumbnail */}
@@ -14,22 +19,28 @@ const MediaCard = ({ item, user, onDelete, onClick }) => {
                     <video src={item.url} preload="none" className="w-full h-full object-cover" />
                 )}
 
-                {/* Album badge */}
-                {item.album && (
-                    <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-md text-white text-[10px] px-2.5 py-1 rounded-lg font-black uppercase tracking-wider z-10 border border-white/10 shadow-lg">
-                        {item.album}
-                    </div>
-                )}
+                {/* Floating Badges Container */}
+                <div className="absolute top-2.5 left-2.5 flex flex-col items-start gap-1.5 z-20 max-w-[calc(100%-40px)]">
+                    {/* Album badge */}
+                    {item.album && (
+                        <div className="bg-black/40 backdrop-blur-md text-white/90 text-[10px] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider border border-white/10 shadow-sm cursor-default whitespace-nowrap overflow-hidden text-ellipsis max-w-full">
+                            {item.album}
+                        </div>
+                    )}
 
-                {/* Location badge */}
-                {(item.location?.name || item.metadata?.location) && (
-                    <div className="media-card__location">
-                        <MapPin className="w-3 h-3 flex-shrink-0" />
-                        <span className="truncate">
-                            {item.location?.name || item.metadata?.location?.placeName || item.metadata?.location?.city || 'Location'}
-                        </span>
-                    </div>
-                )}
+                    {/* Location badge */}
+                    {(item.location?.name || item.metadata?.location) && (
+                        <div
+                            className="bg-white/80 backdrop-blur-md text-slate-900 border border-black/5 py-0.5 px-2 rounded-md shadow-sm flex items-center gap-1 cursor-pointer transition-all hover:bg-white active:scale-95 group/loc max-w-full"
+                            onClick={(e) => handleFilterClick(e, 'location', item.location?.name || item.metadata?.location?.placeName || item.metadata?.location?.city)}
+                        >
+                            <MapPin className="w-3 h-3 text-red-500 flex-shrink-0 group-hover/loc:scale-110 transition-transform" />
+                            <span className="text-[10px] font-semibold truncate">
+                                {item.location?.name || item.metadata?.location?.placeName || item.metadata?.location?.city || 'Location'}
+                            </span>
+                        </div>
+                    )}
+                </div>
 
                 {/* Type badge */}
                 <div className="absolute bottom-2 left-2 bg-white/90 text-textMain text-xs px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm font-medium">
@@ -54,7 +65,13 @@ const MediaCard = ({ item, user, onDelete, onClick }) => {
                 <p className="text-xs text-textSecondary mb-3">by {item.uploadedBy?.username}</p>
                 <div className="flex flex-wrap gap-1">
                     {item.tags?.slice(0, 4).map((tag, i) => (
-                        <span key={i} className="text-xs px-2 py-0.5 rounded-full bg-primary/20 text-textMain font-medium">{tag}</span>
+                        <span
+                            key={i}
+                            onClick={(e) => handleFilterClick(e, 'search', tag)}
+                            className="text-[10px] px-2.5 py-1 rounded-full bg-primary/10 text-textMain font-black uppercase tracking-wider hover:bg-primary transition-all cursor-pointer"
+                        >
+                            #{tag}
+                        </span>
                     ))}
                 </div>
             </div>

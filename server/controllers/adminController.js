@@ -5,7 +5,7 @@ const { deleteFile } = require('../utils/s3');
 // @desc    Get platform stats
 // @route   GET /api/admin/stats
 // @access  Admin
-exports.getStats = async (req, res) => {
+exports.getStats = async (req, res, next) => {
     try {
         const [totalUsers, totalMedia, totalImages, totalVideos] = await Promise.all([
             User.countDocuments(),
@@ -19,14 +19,14 @@ exports.getStats = async (req, res) => {
             data: { totalUsers, totalMedia, totalImages, totalVideos }
         });
     } catch (err) {
-        res.status(500).json({ success: false, error: 'Server Error' });
+        next(err);
     }
 };
 
 // @desc    Get all users
 // @route   GET /api/admin/users
 // @access  Admin
-exports.getUsers = async (req, res) => {
+exports.getUsers = async (req, res, next) => {
     try {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
@@ -46,14 +46,14 @@ exports.getUsers = async (req, res) => {
             data: users
         });
     } catch (err) {
-        res.status(500).json({ success: false, error: 'Server Error' });
+        next(err);
     }
 };
 
 // @desc    Delete a user and all their media
 // @route   DELETE /api/admin/users/:id
 // @access  Admin
-exports.deleteUser = async (req, res) => {
+exports.deleteUser = async (req, res, next) => {
     try {
         const user = await User.findById(req.params.id);
         if (!user) {
@@ -78,14 +78,14 @@ exports.deleteUser = async (req, res) => {
         res.status(200).json({ success: true, data: {} });
     } catch (err) {
         console.error('[ADMIN DELETE ERROR]', err);
-        res.status(500).json({ success: false, error: err.message || 'Server Error' });
+        next(err);
     }
 };
 
 // @desc    Admin creates a new user (registration disabled publicly)
 // @route   POST /api/admin/create-user
 // @access  Admin
-exports.createUser = async (req, res) => {
+exports.createUser = async (req, res, next) => {
     const { username, email, password, role } = req.body;
 
     if (!username || !email || !password) {
@@ -122,7 +122,7 @@ exports.createUser = async (req, res) => {
 // @desc    Get single user details
 // @route   GET /api/admin/users/:id
 // @access  Admin
-exports.getUserDetails = async (req, res) => {
+exports.getUserDetails = async (req, res, next) => {
     try {
         const user = await User.findById(req.params.id);
         if (!user) {
@@ -139,14 +139,14 @@ exports.getUserDetails = async (req, res) => {
             }
         });
     } catch (err) {
-        res.status(500).json({ success: false, error: 'Server Error' });
+        next(err);
     }
 };
 
 // @desc    Update user details
 // @route   PUT /api/admin/users/:id
 // @access  Admin
-exports.updateUser = async (req, res) => {
+exports.updateUser = async (req, res, next) => {
     try {
         let user = await User.findById(req.params.id);
         if (!user) {
@@ -187,7 +187,7 @@ exports.updateUser = async (req, res) => {
 // @desc    Change user password (Admin)
 // @route   PUT /api/admin/users/:id/password
 // @access  Admin
-exports.changeUserPassword = async (req, res) => {
+exports.changeUserPassword = async (req, res, next) => {
     try {
         const user = await User.findById(req.params.id);
         if (!user) {
@@ -208,6 +208,6 @@ exports.changeUserPassword = async (req, res) => {
         });
     } catch (err) {
         console.error(err);
-        res.status(500).json({ success: false, error: 'Server Error' });
+        next(err);
     }
 };

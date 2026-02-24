@@ -68,6 +68,11 @@ const Login = () => {
                                 value={password} onChange={(e) => setPassword(e.target.value)}
                                 className="form-input pl-10" placeholder="••••••••" />
                         </div>
+                        <div className="flex justify-end mt-1.5">
+                            <Link to="/forgot-password" size="sm" className="text-[11px] font-bold text-textSecondary hover:text-primary transition-colors uppercase tracking-widest">
+                                Forgot password?
+                            </Link>
+                        </div>
                     </div>
                     <div className="pt-2">
                         <button type="submit" disabled={loading} className="btn btn-primary">

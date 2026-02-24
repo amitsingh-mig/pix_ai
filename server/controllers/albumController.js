@@ -3,7 +3,7 @@ const Album = require('../models/Album');
 // @desc    Get all albums
 // @route   GET /api/albums
 // @access  Private
-exports.getAlbums = async (req, res) => {
+exports.getAlbums = async (req, res, next) => {
     try {
         console.log(`[ALBUM DEBUG] Fetching albums for user: ${req.user?.id}`);
         const albums = await Album.find({ createdBy: req.user.id }).sort('-createdAt').lean();
@@ -18,14 +18,14 @@ exports.getAlbums = async (req, res) => {
         res.status(200).json({ success: true, count: albumsWithCount.length, data: albumsWithCount });
     } catch (err) {
         console.error(`[ALBUM DEBUG] GET albums error:`, err);
-        res.status(400).json({ success: false, error: err.message });
+        next(err);
     }
 };
 
 // @desc    Create new album
 // @route   POST /api/albums
 // @access  Private
-exports.createAlbum = async (req, res) => {
+exports.createAlbum = async (req, res, next) => {
     try {
         console.log(`[ALBUM DEBUG] Create request body:`, req.body);
         console.log(`[ALBUM DEBUG] User creating album:`, req.user?.id);
@@ -37,14 +37,14 @@ exports.createAlbum = async (req, res) => {
         res.status(201).json({ success: true, data: album });
     } catch (err) {
         console.error(`[ALBUM DEBUG] POST albums error:`, err);
-        res.status(400).json({ success: false, error: err.message });
+        next(err);
     }
 };
 
 // @desc    Update album
 // @route   PUT /api/albums/:id
 // @access  Private
-exports.updateAlbum = async (req, res) => {
+exports.updateAlbum = async (req, res, next) => {
     try {
         let album = await Album.findById(req.params.id);
 
@@ -64,14 +64,14 @@ exports.updateAlbum = async (req, res) => {
 
         res.status(200).json({ success: true, data: album });
     } catch (err) {
-        res.status(400).json({ success: false, error: err.message });
+        next(err);
     }
 };
 
 // @desc    Delete album
 // @route   DELETE /api/albums/:id
 // @access  Private
-exports.deleteAlbum = async (req, res) => {
+exports.deleteAlbum = async (req, res, next) => {
     try {
         const album = await Album.findById(req.params.id);
 
@@ -92,7 +92,7 @@ exports.deleteAlbum = async (req, res) => {
 
         res.status(200).json({ success: true, data: {} });
     } catch (err) {
-        res.status(400).json({ success: false, error: err.message });
+        next(err);
     }
 };
 

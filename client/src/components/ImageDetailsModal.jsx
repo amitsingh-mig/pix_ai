@@ -9,9 +9,11 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import imageInfoAnimation from "../assets/lottie/image-info.json";
 
-const ImageDetailsModal = ({ image, onClose, onUpdate, onDelete, albums = [] }) => {
+const ImageDetailsModal = ({ image, user, onClose, onUpdate, onDelete, onFilter, albums = [], filterOptions = { cameras: [], locations: [] } }) => {
     const [isUpdating, setIsUpdating] = useState(false);
     const [tagInput, setTagInput] = useState('');
+    const [editingField, setEditingField] = useState(null); // 'camera', 'location', 'title'
+    const [editValue, setEditValue] = useState('');
 
 
     if (!image) return null;
@@ -86,6 +88,90 @@ const ImageDetailsModal = ({ image, onClose, onUpdate, onDelete, albums = [] }) 
             hour: '2-digit',
             minute: '2-digit'
         });
+    };
+
+    const handleFieldUpdate = async (field, value) => {
+        setIsUpdating(true);
+        try {
+            const body = {};
+            if (field === 'camera') body.camera = { model: value };
+            if (field === 'location') body.location = { name: value };
+            if (field === 'title') body.title = value;
+
+            const res = await api.put(`/media/${image._id}`, body);
+            if (onUpdate) onUpdate(res.data.data);
+            setEditingField(null);
+        } catch (err) {
+            alert('Failed to update metadata');
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
+    const MetadataListEditor = ({ field, icon: Icon, label, value, options }) => {
+        const isEditing = editingField === field;
+
+        if (isEditing) {
+            return (
+                <div className="flex flex-col gap-2 w-full p-2 bg-primary/5 rounded-xl border border-primary/20">
+                    <label className="text-[10px] font-bold text-primary uppercase tracking-widest">{label}</label>
+                    <div className="flex gap-2">
+                        <input
+                            list={`${field}-list`}
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleFieldUpdate(field, editValue);
+                                if (e.key === 'Escape') setEditingField(null);
+                            }}
+                            autoFocus
+                            className="flex-1 bg-white border border-borderColor rounded-lg px-3 py-1.5 text-xs outline-none focus:border-primary"
+                        />
+                        <datalist id={`${field}-list`}>
+                            {options.map(opt => <option key={opt} value={opt} />)}
+                        </datalist>
+                        <button
+                            onClick={() => handleFieldUpdate(field, editValue)}
+                            className="p-1.5 bg-primary text-textMain rounded-lg hover:bg-secondary transition-colors"
+                        >
+                            <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        return (
+            <div className="flex items-center justify-between group/edit">
+                <div
+                    className="hover:bg-gray-50 p-2 -m-2 rounded-lg cursor-pointer transition-colors group/item flex-1"
+                    onClick={() => {
+                        if (field === 'camera' || field === 'location') {
+                            onFilter && onFilter({ [field]: value });
+                        }
+                    }}
+                >
+                    <p className="text-[10px] uppercase font-bold text-textSecondary tracking-widest leading-none mb-1 group-hover/item:text-primary">{label}</p>
+                    <div className="flex items-center gap-1.5">
+                        <Icon className="w-3 h-3 text-gray-300 group-hover/item:text-primary/50" />
+                        <h3 className="text-sm font-bold text-textMain leading-tight group-hover/item:text-primary truncate">
+                            {value || `Set ${label}`}
+                        </h3>
+                    </div>
+                </div>
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingField(field);
+                        setEditValue(value || '');
+                    }}
+                    className="opacity-0 group-hover/edit:opacity-100 p-1.5 text-textSecondary hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                    title={`Edit ${label}`}
+                >
+                    <Edit3 className="w-3 h-3" />
+                </button>
+            </div>
+        );
     };
 
     const formatSize = (bytes) => {
@@ -277,11 +363,14 @@ const ImageDetailsModal = ({ image, onClose, onUpdate, onDelete, albums = [] }) 
                                             <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center text-accent">
                                                 <MapPin className="w-4 h-4" />
                                             </div>
-                                            <div>
-                                                <p className="text-[10px] uppercase font-bold text-textSecondary tracking-widest leading-none mb-1">Location</p>
-                                                <h3 className="text-sm font-bold text-textMain leading-tight">
-                                                    {image.location?.name || image.metadata?.location?.placeName || image.metadata?.location?.city || 'Exact Location'}
-                                                </h3>
+                                            <div className="flex-1">
+                                                <MetadataListEditor
+                                                    field="location"
+                                                    icon={MapPin}
+                                                    label="Location"
+                                                    value={image.location?.name || image.metadata?.location?.placeName || image.metadata?.location?.city}
+                                                    options={filterOptions.locations}
+                                                />
                                             </div>
                                         </div>
                                         {(image.location?.latitude || image.metadata?.location?.lat) && (image.location?.longitude || image.metadata?.location?.lng) && (
@@ -333,11 +422,14 @@ const ImageDetailsModal = ({ image, onClose, onUpdate, onDelete, albums = [] }) 
                                         <p className="text-[10px] uppercase font-bold text-textSecondary tracking-widest">Capture Details</p>
                                     </div>
                                     <div className="grid grid-cols-2 gap-y-4 gap-x-3">
-                                        <div>
-                                            <p className="text-[10px] text-textSecondary font-medium mb-0.5">Camera</p>
-                                            <p className="text-[11px] font-bold text-textMain truncate flex items-center gap-1.5">
-                                                <Cpu className="w-3 h-3 text-gray-300" /> {image.camera?.model || image.metadata?.exif?.camera || 'Unknown Device'}
-                                            </p>
+                                        <div className="col-span-2 bg-gray-50/50 p-1 rounded-xl">
+                                            <MetadataListEditor
+                                                field="camera"
+                                                icon={Cpu}
+                                                label="Camera Model"
+                                                value={image.camera?.model || image.metadata?.exif?.camera}
+                                                options={filterOptions.cameras}
+                                            />
                                         </div>
                                         <div>
                                             <p className="text-[10px] text-textSecondary font-medium mb-0.5">Lens</p>
@@ -412,12 +504,17 @@ const ImageDetailsModal = ({ image, onClose, onUpdate, onDelete, albums = [] }) 
 
                                 <div className="flex flex-wrap gap-1.5 mb-4">
                                     {image.tags?.length > 0 ? image.tags.map((tag, i) => (
-                                        <span key={i} className="px-3 py-1.5 rounded-full bg-gray-50 text-textMain text-[11px] font-bold border border-borderColor hover:border-danger/30 hover:bg-red-50 transition-all cursor-pointer group/tag relative"
-                                            onClick={() => handleRemoveTag(tag)}
-                                            title="Click to remove"
+                                        <span key={i} className="px-3 py-1.5 rounded-full bg-gray-50 text-textMain text-[11px] font-bold border border-borderColor hover:border-primary/30 hover:bg-primary/5 transition-all cursor-pointer group/tag relative"
+                                            onClick={() => onFilter && onFilter({ search: tag })}
+                                            title="Click to search this tag"
                                         >
                                             #{tag}
-                                            <X className="w-2.5 h-2.5 absolute -top-1 -right-1 bg-danger text-white rounded-full opacity-0 group-hover/tag:opacity-100 transition-opacity" />
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleRemoveTag(tag); }}
+                                                className="w-2.5 h-2.5 absolute -top-1 -right-1 bg-danger text-white rounded-full opacity-0 group-hover/tag:opacity-100 transition-opacity flex items-center justify-center hover:scale-110"
+                                            >
+                                                <X className="w-2 h-2" />
+                                            </button>
                                         </span>
                                     )) : (
                                         <p className="text-xs text-textSecondary italic">No tags associated.</p>
@@ -476,12 +573,14 @@ const ImageDetailsModal = ({ image, onClose, onUpdate, onDelete, albums = [] }) 
                                 >
                                     <Download className="w-4 h-4" /> Download
                                 </button>
-                                <button
-                                    onClick={handleDelete}
-                                    className="flex items-center justify-center gap-2 py-3.5 bg-white hover:bg-red-50 text-red-500 font-bold text-xs rounded-xl border border-borderColor hover:border-red-200 transition-all active:scale-[0.98]"
-                                >
-                                    <Trash2 className="w-4 h-4" /> Delete
-                                </button>
+                                {user && (user.role === 'admin' || user.id === image.uploadedBy?._id || user.id === image.uploadedBy) && (
+                                    <button
+                                        onClick={handleDelete}
+                                        className="flex items-center justify-center gap-2 py-3.5 bg-white hover:bg-red-50 text-red-500 font-bold text-xs rounded-xl border border-borderColor hover:border-red-200 transition-all active:scale-[0.98]"
+                                    >
+                                        <Trash2 className="w-4 h-4" /> Delete
+                                    </button>
+                                )}
                             </div>
 
                             <div className="flex items-center gap-2">

@@ -12,6 +12,8 @@ import Error404 from './pages/Error404';
 import Error400 from './pages/Error400';
 import Error500 from './pages/Error500';
 import Profile from './pages/Profile';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import Loader3D from './components/Loader3D';
 import OnboardingTour from './components/OnboardingTour';
 import MainLayout from './components/MainLayout';
@@ -62,6 +64,8 @@ const App = () => {
           <Routes>
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password/:token" element={<ResetPassword />} />
 
             {/* Authenticated routes wrapped in MainLayout */}
             <Route element={<PrivateRoute><MainLayout /></PrivateRoute>}>

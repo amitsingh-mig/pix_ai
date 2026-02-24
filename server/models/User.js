@@ -38,7 +38,9 @@ const UserSchema = new mongoose.Schema({
     createdAt: {
         type: Date,
         default: Date.now
-    }
+    },
+    resetToken: String,
+    resetTokenExpiry: Date
 });
 
 // Encrypt password using bcrypt

@@ -1,9 +1,14 @@
+if (typeof window !== 'undefined') {
+    throw new Error('Backend security configuration must run in Node.js server environment only.');
+}
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const fs = require('fs');
-
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 dotenv.config();
 
 const connectDB = require('./config/db');
@@ -11,6 +16,40 @@ const connectDB = require('./config/db');
 const app = express();
 
 const path = require('path');
+
+// Security Headers
+app.use(helmet());
+
+// Rate Limiting
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 requests per windowMs
+    message: 'Too many requests from this IP, please try again after 15 minutes',
+    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
+
+// Apply rate limiter to all API routes
+app.use('/api/', limiter);
+
+// Data Sanitization against NoSQL Injection (Custom lightweight implementation)
+app.use((req, res, next) => {
+    const sanitize = (obj) => {
+        if (obj && typeof obj === 'object') {
+            Object.keys(obj).forEach(key => {
+                if (key.startsWith('$')) {
+                    delete obj[key];
+                } else if (typeof obj[key] === 'object') {
+                    sanitize(obj[key]);
+                }
+            });
+        }
+    };
+    sanitize(req.body);
+    sanitize(req.query);
+    sanitize(req.params);
+    next();
+});
 
 // Middleware
 app.use(cors({
@@ -21,17 +60,7 @@ app.use(cors({
 // Standard JSON limit for most routes (increased from default but restricted from global 100mb)
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ limit: '1mb', extended: true }));
-app.use((req, res, next) => {
-    const start = Date.now();
-    res.on('finish', () => {
-        const duration = Date.now() - start;
-        console.log(`[REQ] ${new Date().toISOString()} - ${req.method} ${req.url} ${res.statusCode} (${duration}ms)`);
-        if (['POST', 'PUT'].includes(req.method) && req.body) {
-            console.log(`[REQ BODY] ${JSON.stringify(req.body)}`);
-        }
-    });
-    next();
-});
+
 
 app.use('/data/media', express.static(path.join(__dirname, 'data', 'media')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); // Fallback for old files
@@ -91,13 +120,13 @@ const startServer = async () => {
 
         app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
-        // Error Handler for Malformed JSON
+        // Global Error Handler
         app.use((err, req, res, next) => {
-            if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
-                console.error(`[JSON ERROR] ${new Date().toISOString()} - Malformed JSON from ${req.ip}: ${err.message}`);
-                return res.status(400).json({ success: false, error: 'Invalid JSON format' });
-            }
-            next(err);
+            console.error('[ERROR]', err);
+            res.status(err.status || 500).json({
+                success: false,
+                error: err.message || 'Server Error'
+            });
         });
 
         const PORT = process.env.PORT || 5000;

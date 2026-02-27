@@ -53,7 +53,26 @@ if (isAWSConfigured) {
     console.log('ℹ AWS not configured. Using monthly-partitioned local storage.');
 }
 
-const upload = multer({ storage });
+const upload = multer({
+    storage,
+    limits: {
+        fileSize: 50 * 1024 * 1024, // 50MB per file
+        files: 100 // Maximum 100 files at once
+    },
+    fileFilter: function (req, file, cb) {
+        const filetypes = /jpeg|jpg|png|webp|mp4|mov|avi|quicktime/;
+        const mimetypes = /image\/(jpeg|jpg|png|webp)|video\/(mp4|quicktime|x-msvideo)/;
+
+        const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+        const mimetype = mimetypes.test(file.mimetype);
+
+        if (mimetype && extname) {
+            return cb(null, true);
+        } else {
+            cb(new Error('Only images (jpg, png, webp) and videos (mp4, mov, avi) are allowed!'));
+        }
+    }
+});
 
 const deleteFile = async (key) => {
     if (!key) return;

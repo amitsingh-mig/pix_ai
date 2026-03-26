@@ -12,6 +12,12 @@ const MediaSchema = new mongoose.Schema({
     thumbnailUrl: {
         type: String
     },
+    lowResUrl: {
+        type: String
+    },
+    highResUrl: {
+        type: String
+    },
     type: {
         type: String,
         required: true
@@ -61,6 +67,7 @@ const MediaSchema = new mongoose.Schema({
             iso: Number,
             shutterSpeed: String,
             aperture: String,
+            focalLength: String,
             make: String,
             model: String
         },
@@ -79,7 +86,8 @@ const MediaSchema = new mongoose.Schema({
         }],
         device: String,
         duration: Number,
-        resolution: String
+        resolution: String,
+        photographyInsight: String
     },
     createdAt: {
         type: Date,

@@ -85,6 +85,15 @@ const Login = () => {
                 <p className="mt-6 text-center text-sm text-textSecondary">
                     Contact an administrator to create an account.
                 </p>
+
+                <div className="mt-4 pt-4 border-t border-borderColor text-center">
+                    <Link
+                        to="/gallery"
+                        className="inline-flex items-center gap-1.5 text-[11px] font-bold text-textSecondary hover:text-primary transition-colors uppercase tracking-widest"
+                    >
+                        Browse as Guest →
+                    </Link>
+                </div>
             </div>
         </div>
     );

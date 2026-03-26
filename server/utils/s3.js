@@ -1,4 +1,4 @@
-const { S3Client, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, DeleteObjectCommand, HeadObjectCommand, PutObjectCommand } = require('@aws-sdk/client-s3');
 const multer = require('multer');
 const multerS3 = require('multer-s3');
 const path = require('path');
@@ -11,23 +11,24 @@ const isAWSConfigured =
     process.env.AWS_SECRET_ACCESS_KEY &&
     process.env.AWS_SECRET_ACCESS_KEY !== 'your_aws_secret_key';
 
+const s3 = new S3Client({
+    region: process.env.AWS_REGION,
+    credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+    }
+});
+
 let storage;
 
 if (isAWSConfigured) {
-    const s3 = new S3Client({
-        region: process.env.AWS_REGION,
-        credentials: {
-            accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-            secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
-        }
-    });
-
     storage = multerS3({
         s3: s3,
         bucket: process.env.AWS_BUCKET_NAME,
         contentType: multerS3.AUTO_CONTENT_TYPE,
         key: function (req, file, cb) {
-            cb(null, `media/${Date.now().toString()}${path.extname(file.originalname)}`);
+            // New structure: original/timestamp.ext
+            cb(null, `original/${Date.now().toString()}${path.extname(file.originalname)}`);
         }
     });
 
@@ -80,17 +81,10 @@ const deleteFile = async (key) => {
     // Detect storage type
     if (!isAWSConfigured) {
         // Handle local file deletion
-        // Key might look like: "2026-02/filename.jpg" or "/data/media/2026-02/filename.jpg"
-        // We want to ensure it targets server/data/media/relative_path
-
         let localPath = key;
-        // Strip leading slash if present
         if (localPath.startsWith('/')) {
             localPath = localPath.substring(1);
         }
-
-        // If it starts with data/media, it's already basically correct for our join
-        // If it doesn't, we need to join it properly
         const basePath = localPath.startsWith('data/media') ? '' : path.join('data', 'media');
         const filePath = path.join(__dirname, '..', basePath, localPath);
 
@@ -107,26 +101,65 @@ const deleteFile = async (key) => {
         return;
     }
 
-    // fallback for S3 if configured
-    const s3 = new S3Client({
-        region: process.env.AWS_REGION,
-        credentials: {
-            accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-            secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
-        }
-    });
-
     const command = new DeleteObjectCommand({
         Bucket: process.env.AWS_BUCKET_NAME,
         Key: key,
     });
     try {
-        await s3.send(command);
-        console.log(`✔ S3 object deleted: ${key}`);
+        await s3.send(command).then(() => {
+            console.log(`✔ S3 object deleted: ${key}`);
+        });
     } catch (err) {
         console.error("✖ Error deleting from S3", err);
     }
 };
 
-module.exports = { upload, deleteFile, isAWSConfigured };
+const getS3FileSize = async (key) => {
+    if (!key || !isAWSConfigured) return 0;
+    
+    try {
+        const command = new HeadObjectCommand({
+            Bucket: process.env.AWS_BUCKET_NAME,
+            Key: key,
+        });
+        const response = await s3.send(command);
+        return response.ContentLength || 0;
+    } catch (err) {
+        console.error(`✖ Error fetching size for S3 object (${key}):`, err.message);
+        return 0;
+    }
+};
+
+/**
+ * Uploads a buffer to S3
+ * @param {Buffer} buffer The buffer to upload
+ * @param {string} key The key (path) in S3
+ * @param {string} mimetype The mimetype
+ * @returns {Promise<string>} The URL of the uploaded object
+ */
+const uploadBuffer = async (buffer, key, mimetype) => {
+    if (!isAWSConfigured) {
+        throw new Error('S3 not configured for uploadBuffer');
+    }
+
+    const command = new PutObjectCommand({
+        Bucket: process.env.AWS_BUCKET_NAME,
+        Key: key,
+        Body: buffer,
+        ContentType: mimetype
+    });
+
+    await s3.send(command);
+    return `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+};
+
+module.exports = { 
+    upload, 
+    deleteFile, 
+    isAWSConfigured, 
+    s3, 
+    getS3FileSize,
+    uploadBuffer
+};
+
 

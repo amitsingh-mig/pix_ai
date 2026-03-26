@@ -1,6 +1,7 @@
 const exifParser = require('exif-parser');
 const fs = require('fs');
 const { RekognitionClient, DetectFacesCommand } = require('@aws-sdk/client-rekognition');
+const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegInstaller = require('ffmpeg-static');
 
@@ -52,27 +53,52 @@ exports.extractVideoMetadata = async (filePath) => {
 };
 
 /**
- * Extracts EXIF metadata from an image buffer or file path
- * @param {Buffer|string} input Buffer or Path to the image file
+ * Extracts EXIF metadata from an image buffer, file path, or S3 object
+ * @param {Buffer|string|Object} input Buffer, Path to the image file, or { bucket, key }
  * @returns {Object} Extracted EXIF data
  */
 exports.extractExif = async (input) => {
     try {
-        // Size check before reading buffer (Requirement: If file > 25MB -> skip)
-        if (typeof input === 'string') {
+        let buffer;
+        if (typeof input === 'object' && input.bucket && input.key) {
+            console.log(`[EXIF] Fetching metadata for S3 object: ${input.key}`);
+            const s3 = new S3Client({
+                region: process.env.AWS_REGION || 'us-east-1',
+                credentials: {
+                    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+                    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+                }
+            });
+            const command = new GetObjectCommand({
+                Bucket: input.bucket,
+                Key: input.key,
+                Range: 'bytes=0-1048575' // Fetch 1MB (enough for almost any EXIF + header)
+            });
+            const response = await s3.send(command);
+            
+            // SDK v3 transformToByteArray is more reliable
+            const byteArray = await response.Body.transformToByteArray();
+            buffer = Buffer.from(byteArray);
+            console.log(`[EXIF] Successfully fetched buffer for ${input.key} (${buffer.length} bytes)`);
+        } else if (typeof input === 'string') {
+            // Local file path
             const stats = fs.statSync(input);
             const fileSizeInBytes = stats.size;
-            const fileSizeInMegabytes = fileSizeInBytes / (1024 * 1024);
-            if (fileSizeInMegabytes > 25) {
-                console.log(`ℹ File size (${fileSizeInMegabytes.toFixed(2)}MB) exceeds 25MB limit. Skipping EXIF extraction.`);
-                return null;
-            }
+            buffer = await fs.promises.readFile(input);
+            console.log(`[EXIF] Read local file: ${input} (${buffer.length} bytes)`);
+        } else {
+            // Buffer
+            buffer = input;
         }
 
-        // Use async file reading to avoid blocking the event loop
-        const buffer = Buffer.isBuffer(input) ? input : await fs.promises.readFile(input);
+        if (!buffer || buffer.length === 0) {
+            console.warn('[EXIF] Buffer is empty, skipping.');
+            return null;
+        }
+
         const parser = exifParser.create(buffer);
         const result = parser.parse();
+        console.log(`[EXIF] Parser finished for ${input.key || 'buffer'}. Found tags: ${Object.keys(result.tags || {}).length}`);
 
         const { tags } = result;
 
@@ -83,6 +109,8 @@ exports.extractExif = async (input) => {
             iso: tags.ISO,
             shutterSpeed: tags.ExposureTime ? `1/${Math.round(1 / tags.ExposureTime)}` : null,
             aperture: tags.FNumber ? `f/${tags.FNumber}` : null,
+            focalLength: tags.FocalLength ? `${tags.FocalLength}mm` : null,
+            resolution: result.getImageSize() ? `${result.getImageSize().width}x${result.getImageSize().height}` : null,
             location: tags.GPSLatitude && tags.GPSLongitude ? {
                 lat: tags.GPSLatitude,
                 lng: tags.GPSLongitude

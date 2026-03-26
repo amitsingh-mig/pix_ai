@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard';
 import Upload from './pages/Upload';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminAddUser from './pages/AdminAddUser';
+import GuestGallery from './pages/GuestGallery';
 import Error404 from './pages/Error404';
 import Error400 from './pages/Error400';
 import Error500 from './pages/Error500';
@@ -27,16 +28,26 @@ const Spinner = () => (
   </div>
 );
 
+// Require login
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useAuth();
   if (loading) return <Spinner />;
   return user ? (children || <Outlet />) : <Navigate to="/login" replace />;
 };
 
+// Require admin role
 const AdminRoute = ({ children }) => {
   const { user, loading } = useAuth();
   if (loading) return <Spinner />;
   return user && user.role === 'admin' ? (children || <Outlet />) : <Navigate to="/" replace />;
+};
+
+// If already logged in, redirect away from /gallery to the proper dashboard
+const GuestRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+  if (loading) return <Spinner />;
+  // Logged-in users don't need the guest gallery — send them to dashboard
+  return !user ? (children || <Outlet />) : <Navigate to="/" replace />;
 };
 
 const App = () => {
@@ -62,12 +73,15 @@ const App = () => {
           }}
         >
           <Routes>
-            {/* Public routes */}
+            {/* ── Public / Auth routes ─────────────────────────────────── */}
             <Route path="/login" element={<Login />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password/:token" element={<ResetPassword />} />
 
-            {/* Authenticated routes wrapped in MainLayout */}
+            {/* ── Guest-only public gallery (no login required) ─────────── */}
+            <Route path="/gallery" element={<GuestGallery />} />
+
+            {/* ── Authenticated routes wrapped in MainLayout ────────────── */}
             <Route element={<PrivateRoute><MainLayout /></PrivateRoute>}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/upload" element={<Upload />} />
@@ -80,7 +94,7 @@ const App = () => {
               </Route>
             </Route>
 
-            {/* Error pages and Catch-all */}
+            {/* ── Error pages & Catch-all ───────────────────────────────── */}
             <Route path="/400" element={<Error400 />} />
             <Route path="/500" element={<Error500 />} />
             <Route path="/404" element={<Error404 />} />

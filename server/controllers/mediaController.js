@@ -1,9 +1,9 @@
 const mongoose = require('mongoose');
 const Media = require('../models/Media');
 const Album = require('../models/Album');
-const { isAWSConfigured, deleteFile } = require('../utils/s3');
+const { isAWSConfigured, deleteFile, getS3FileSize } = require('../utils/s3');
 const { generateTags } = require('../utils/ai');
-const { generateThumbnail } = require('../utils/thumbnailService');
+const { generateThumbnail, generateLowResS3 } = require('../utils/thumbnailService');
 const { extractExif, detectPeople, reverseGeocode, extractVideoMetadata } = require('../utils/metadataExtractor');
 const path = require('path');
 const fs = require('fs');
@@ -43,9 +43,21 @@ exports.uploadMedia = async (req, res, next) => {
 
         const uploadedMedia = [];
         const processFile = async (file) => {
-            const subFolder = file.destination.split(path.join('data', 'media'))[1].replace(/^[\\\/]/, '');
-            const mediaKey = isAWSConfigured ? file.key : path.join(subFolder, file.filename).replace(/\\/g, '/');
-            const mediaUrl = isAWSConfigured ? file.location : `/data/media/${mediaKey}`;
+            // Enforce AWS S3 only — reject local storage
+            if (!isAWSConfigured) {
+                throw new Error('AWS S3 is not configured. Local uploads are not permitted. Please configure AWS credentials.');
+            }
+
+            // Determine media key and URL from S3 (multer-s3 provides 'key' and 'location')
+            let mediaKey, mediaUrl;
+            mediaKey = file.key;
+            mediaUrl = file.location || `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${file.key}`;
+
+            // Validate the URL is a proper S3 URL before saving
+            if (!mediaUrl || !mediaUrl.includes('amazonaws.com')) {
+                throw new Error(`Invalid S3 URL returned for file "${file.originalname}". Upload aborted.`);
+            }
+
             const isImage = file.mimetype.startsWith('image');
 
             let exifData = null;
@@ -55,52 +67,101 @@ exports.uploadMedia = async (req, res, next) => {
             let thumbnailUrl = null;
 
             if (isImage) {
-                // 0. Generate Thumbnail (Phase 2)
-                if (!isAWSConfigured) {
-                    thumbnailUrl = await generateThumbnail(file.path, file.filename);
+                // Generate low-res preview version for the UI (Dual-image system)
+                try {
+                    const lowResData = await generateLowResS3(process.env.AWS_BUCKET_NAME, mediaKey, file.mimetype);
+                    if (lowResData) {
+                        thumbnailUrl = lowResData.url;
+                        console.log(`[UPLOAD] Generated low-res preview: ${thumbnailUrl}`);
+                    }
+                } catch (err) {
+                    console.error('[UPLOAD] Low-res generation failed:', err.message);
                 }
 
-                // 1. Extract EXIF
-                const exifInput = file.path;
-                if (exifInput && fs.existsSync(exifInput)) {
-                    exifData = await extractExif(exifInput);
-                    if (exifData && exifData.location) {
-                        locationData = await reverseGeocode(exifData.location.lat, exifData.location.lng);
+                // Run AI tag generation + face detection + EXIF extraction in parallel for speed
+                const [tagsResult, peopleResult, exifResult] = await Promise.allSettled([
+                    generateTags(mediaKey, { enrichWithOpenAI: true }),
+                    detectPeople({ S3Object: { Bucket: process.env.AWS_BUCKET_NAME, Name: mediaKey } }),
+                    extractExif({ bucket: process.env.AWS_BUCKET_NAME, key: mediaKey })
+                ]);
+
+                // Collect AI tags from Rekognition + OpenAI
+                if (tagsResult.status === 'fulfilled') {
+                    aiTags = tagsResult.value || [];
+                } else {
+                    console.error('[UPLOAD] AI tagging failed:', tagsResult.reason?.message);
+                }
+
+                // Collect people data and inject people tags
+                if (peopleResult.status === 'fulfilled') {
+                    peopleData = peopleResult.value || [];
+                    if (peopleData.length > 0) {
+                        // Add 'person' and 'people' to tags if faces were detected
+                        aiTags = Array.from(new Set([...aiTags, 'person', 'people']));
+                        console.log(`[UPLOAD] Detected ${peopleData.length} face(s) — injected people tags`);
+                    }
+                } else {
+                    console.error('[UPLOAD] Face detection failed:', peopleResult.reason?.message);
+                }
+
+                // Collect EXIF data
+                if (exifResult.status === 'fulfilled') {
+                    exifData = exifResult.value;
+                    if (exifData && (exifData.make || exifData.model || exifData.iso)) {
+                        console.log(`[UPLOAD] ✅ EXIF extracted for "${file.originalname}": ${exifData.make} ${exifData.model}`);
+                        console.log(`[UPLOAD]    Details: ISO ${exifData.iso}, ${exifData.aperture}, ${exifData.shutterSpeed}, ${exifData.focalLength}`);
+                    } else {
+                        console.log(`[UPLOAD] ℹ EXIF missing or empty for "${file.originalname}". Attempting AI estimation...`);
+                        
+                        // AI settings estimation fallback
+                        const { estimateCameraSettings } = require('../utils/ai');
+                        const estimated = await estimateCameraSettings(mediaKey);
+                        if (estimated) {
+                            exifData = {
+                                ...exifData,
+                                camera: estimated.camera,
+                                make: estimated.camera.split(' ')[0],
+                                model: estimated.camera,
+                                iso: estimated.iso,
+                                shutterSpeed: estimated.shutterSpeed,
+                                aperture: estimated.aperture,
+                                focalLength: estimated.focalLength,
+                                photographyInsight: estimated.insight,
+                                isAIEstimated: true
+                            };
+                            console.log(`[UPLOAD] 🪄 AI estimated settings: ${estimated.camera}, ISO ${estimated.iso}, etc.`);
+                        }
+                    }
+                } else {
+                    console.error('[UPLOAD] ❌ EXIF extraction failed:', exifResult.reason?.message);
+                }
+
+                // Generate Photography Insight if EXIF is available (and not already set by estimation)
+                if (exifData && !exifData.photographyInsight) {
+                    const { generatePhotographyInsight } = require('../utils/ai');
+                    const insight = await generatePhotographyInsight(exifData);
+                    if (insight) {
+                        console.log(`[UPLOAD] 📝 AI Insight: ${insight}`);
+                        exifData.photographyInsight = insight;
                     }
                 }
 
-                // 2. Detect People (Rekognition)
-                const rekSource = isAWSConfigured
-                    ? { S3Object: { Bucket: process.env.AWS_BUCKET_NAME, Name: mediaKey } }
-                    : { Bytes: fs.readFileSync(file.path) };
-
-                peopleData = await detectPeople(rekSource);
-
-                // 3. AI Tags (OpenAI)
-                aiTags = await generateTags(mediaKey);
             } else if (file.mimetype.startsWith('video')) {
-                // 1. Extract Video Metadata (ffprobe)
-                const videoMetadata = await extractVideoMetadata(file.path);
-                if (videoMetadata) {
-                    exifData = {
-                        camera: videoMetadata.camera,
-                        lens: videoMetadata.lens,
-                        captureDate: videoMetadata.captureDate,
-                        iso: null,
-                        shutterSpeed: null,
-                        aperture: null,
-                        device: videoMetadata.device
-                    };
-                    file.videoInfo = {
-                        duration: videoMetadata.duration,
-                        resolution: videoMetadata.resolution
-                    };
-                }
+                // Video metadata extraction from local path is skipped for S3 uploads.
                 aiTags = ['video', 'multimedia'];
             }
 
-            // Merge shared tags with AI tags
-            const finalTags = Array.from(new Set([...sharedTags, ...(aiTags || []).map(t => t.toLowerCase())]));
+            // Merge user tags + AI tags, deduplicate
+            const finalTags = Array.from(new Set([
+                ...sharedTags,
+                ...(aiTags || []).map(t => t.toLowerCase()).filter(t => t.length > 0)
+            ]));
+
+            console.log(`[UPLOAD] Tag summary for "${file.originalname}":`);
+            console.log(`  → Shared/user tags : ${sharedTags.join(', ') || '(none)'}`);
+            console.log(`  → AI-generated tags: ${aiTags.join(', ') || '(none)'}`);
+            console.log(`  → Final merged tags: ${finalTags.join(', ')}`);
+            console.log(`  → Faces detected   : ${peopleData.length}`);
 
             // Prepare location object
             let finalLocation = locationData ? {
@@ -120,23 +181,36 @@ exports.uploadMedia = async (req, res, next) => {
                     placeName: locationDataBody.placeName
                 };
             } else if (manualLocation) {
-                const manualGeo = await require('../utils/metadataExtractor').geocode(manualLocation);
-                if (manualGeo) {
-                    finalLocation = {
-                        ...manualGeo,
-                        placeName: manualLocation
-                    };
-                } else {
-                    // Clear any EXIF location if manual text is provided but geocoding fails
+                try {
+                    const manualGeo = await require('../utils/metadataExtractor').geocode(manualLocation);
+                    if (manualGeo) {
+                        finalLocation = {
+                            ...manualGeo,
+                            placeName: manualLocation
+                        };
+                    } else {
+                        finalLocation = { placeName: manualLocation };
+                    }
+                } catch (err) {
                     finalLocation = { placeName: manualLocation };
                 }
+            }
+
+            // Ensure correct file size is captured (fallback to S3 if file.size is missing/zero)
+            let fileSize = file.size || 0;
+            if (fileSize === 0 && mediaKey && isAWSConfigured) {
+                console.log(`[UPLOAD] File size missing for "${file.originalname}" — fetching from S3...`);
+                fileSize = await getS3FileSize(mediaKey);
+                console.log(`[UPLOAD] Fetched size from S3: ${fileSize} bytes`);
             }
 
             const mediaItem = await Media.create({
                 title: title || file.originalname,
                 description: req.body.description || '',
-                url: mediaUrl,
-                thumbnailUrl: thumbnailUrl || mediaUrl,
+                url: mediaUrl, // highRes for legacy
+                thumbnailUrl: thumbnailUrl || mediaUrl, // lowRes for legacy
+                lowResUrl: thumbnailUrl || mediaUrl,
+                highResUrl: mediaUrl,
                 type: isImage ? 'image' : 'video',
                 tags: finalTags,
                 uploadedBy: req.user.id,
@@ -152,20 +226,25 @@ exports.uploadMedia = async (req, res, next) => {
                     make: exifData.make,
                     model: exifData.model
                 } : null,
-                device: exifData?.device || 'Unknown',
+                device: exifData?.camera || exifData?.model || exifData?.device || 'Unknown',
                 metadata: {
-                    size: file.size,
+                    size: fileSize || file.size || 0,
                     mimetype: file.mimetype,
-                    bucket: file.bucket || 'local',
+                    bucket: process.env.AWS_BUCKET_NAME,
                     key: mediaKey,
                     exif: exifData,
                     location: finalLocation,
                     people: peopleData,
                     device: exifData?.device || 'Unknown',
                     duration: file.videoInfo?.duration,
-                    resolution: file.videoInfo?.resolution
+                    resolution: file.videoInfo?.resolution || exifData?.resolution,
+                    photographyInsight: exifData?.photographyInsight,
+                    // AI Tagging audit trail
+                    aiTagSource: isImage ? 'rekognition+openai' : 'manual',
+                    aiTagCount: aiTags.length,
                 }
             });
+            console.log(`[UPLOAD] 📦 Created media record for "${file.originalname}" — Metadata persistence: ${mediaItem.metadata?.exif ? '✅ YES' : '❌ NO'}`);
             return mediaItem;
         };
 
@@ -177,7 +256,9 @@ exports.uploadMedia = async (req, res, next) => {
             }
             const promise = processFile(file).then(res => {
                 pool.delete(promise);
-                uploadedMedia.push(res);
+                if (res) uploadedMedia.push(res);
+            }).catch(err => {
+                console.error('File Processing Error:', err);
             });
             pool.add(promise);
         }
@@ -190,7 +271,11 @@ exports.uploadMedia = async (req, res, next) => {
         });
     } catch (err) {
         console.error('Upload Error:', err);
-        res.status(500).json({ success: false, error: 'Server Error' });
+        res.status(500).json({ 
+            success: false, 
+            error: err.message || 'Server Error',
+            details: err.code || null // Capture AWS error codes like 'AccessDenied'
+        });
     }
 };
 
@@ -204,7 +289,10 @@ exports.getMedia = async (req, res, next) => {
         const skip = (page - 1) * limit;
         console.log(`[MEDIA DEBUG] GET media: page=${page}, limit=${limit}, search="${req.query.search}", type="${req.query.type}", album="${req.query.albumId}"`);
 
-        const filter = {};
+        const filter = {
+            // STEP 1: Always restrict to AWS S3 URLs only — never return local paths
+            url: { $regex: '^https://.*\.amazonaws\.com', $options: 'i' }
+        };
 
         // Type filter
         if (req.query.type && ['image', 'video'].includes(req.query.type)) {
@@ -336,7 +424,10 @@ exports.searchMedia = async (req, res, next) => {
         const limit = parseInt(req.query.limit) || 50;
         const skip = (page - 1) * limit;
 
-        const andFilters = [];
+        const andFilters = [
+            // Always restrict to AWS S3 URLs only — never return local paths
+            { url: { $regex: '^https://.*\.amazonaws\.com', $options: 'i' } }
+        ];
 
         // 1. Keyword Search (if any)
         if (keywords.length > 0) {
@@ -502,10 +593,22 @@ exports.getFilterOptions = async (req, res) => {
 // @access  Public
 exports.getMediaById = async (req, res, next) => {
     try {
-        const media = await Media.findById(req.params.id).populate('uploadedBy', 'username');
+        let media = await Media.findById(req.params.id).populate('uploadedBy', 'username');
         if (!media) {
             return res.status(404).json({ success: false, error: 'Media not found' });
         }
+
+        // Fix: If size is missing or 0, attempt to fetch it from S3 and update DB
+        if ((!media.metadata?.size || media.metadata.size === 0) && media.metadata?.key && isAWSConfigured) {
+            console.log(`[MEDIA] Size missing for "${media.title}" — fetching from S3...`);
+            const actualSize = await getS3FileSize(media.metadata.key);
+            if (actualSize > 0) {
+                media.metadata.size = actualSize;
+                await Media.updateOne({ _id: media._id }, { $set: { 'metadata.size': actualSize } });
+                console.log(`[MEDIA] Updated size for "${media.title}": ${actualSize} bytes`);
+            }
+        }
+
         res.status(200).json({ success: true, data: media });
     } catch (err) {
         next(err);

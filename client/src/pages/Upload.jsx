@@ -70,6 +70,8 @@ const Upload = () => {
         }
     };
 
+    const [uploadedMedia, setUploadedMedia] = useState([]);
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (files.length === 0) { setError('Please select at least one file'); return; }
@@ -96,17 +98,30 @@ const Upload = () => {
         setLoading(true);
         setError('');
         try {
-            await api.post('/media', formData, {
+            const res = await api.post('/media', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
                 onUploadProgress: (evt) => {
                     const pct = Math.round((evt.loaded * 100) / evt.total);
                     setProgress(pct);
                 }
             });
+
+            // Step 4: Handle API response
+            if (Array.isArray(res.data.data)) {
+                setUploadedMedia(res.data.data);
+            } else {
+                setUploadedMedia(prev => [...prev, res.data]);
+            }
+
             localStorage.setItem('justUploaded', 'true');
             localStorage.setItem('highlightAI', 'true');
-            navigate('/');
+            
+            // Short delay to allow state update to be visible in debugger if needed, then navigate
+            setTimeout(() => {
+                navigate('/');
+            }, 500);
         } catch (err) {
+            console.error('Upload Error Handle:', err);
             setError(err.response?.data?.error || err.response?.data?.message || 'Upload failed. Please try again.');
         } finally {
             setLoading(false);

@@ -1,8 +1,13 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, Upload, Camera, User, LayoutDashboard, ShieldCheck, UserPlus, Sparkles, Search } from 'lucide-react';
+import { LogOut, Upload, Camera, User, Search, Crown, ShieldCheck } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
+
+const ROLE_BADGE = {
+    admin: { label: 'Admin', class: 'bg-red-100 text-red-600 border-red-200', icon: Crown },
+    user:  { label: 'User',  class: 'bg-primary/15 text-amber-700 border-primary/30', icon: User },
+};
 
 const Navbar = () => {
     const { user, logout } = useAuth();
@@ -43,6 +48,10 @@ const Navbar = () => {
 
     const handleLogout = () => { logout(); navigate('/login'); };
 
+    const role = user?.role;
+    const badge = role ? ROLE_BADGE[role] : null;
+    const BadgeIcon = badge?.icon;
+
     return (
         <nav className={`md:hidden sticky top-0 z-[100] border-b transition-all duration-300 ${isScrolled
             ? 'bg-white/90 backdrop-blur-xl border-borderColor/20 shadow-lg py-2'
@@ -60,16 +69,27 @@ const Navbar = () => {
                         </span>
                     </Link>
 
+                    {/* Role badge (center) */}
+                    {badge && (
+                        <div className={`hidden xs:flex items-center gap-1 px-2.5 py-1 rounded-full border text-[9px] font-black uppercase tracking-wider ${badge.class}`}>
+                            {BadgeIcon && <BadgeIcon className="w-3 h-3" />}
+                            {badge.label}
+                        </div>
+                    )}
+
                     {/* Quick Actions (Mobile Right) */}
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
                         {user ? (
                             <>
                                 <Link to="/?search=true" className="p-2 text-textSecondary active:text-primary transition-colors">
                                     <Search className="w-5 h-5" />
                                 </Link>
-                                <Link to="/upload" className="p-2 text-textSecondary active:text-primary transition-colors">
-                                    <Upload className="w-5 h-5" />
-                                </Link>
+                                {/* Only show upload for non-guest */}
+                                {user.role !== 'guest' && (
+                                    <Link to="/upload" className="p-2 text-textSecondary active:text-primary transition-colors">
+                                        <Upload className="w-5 h-5" />
+                                    </Link>
+                                )}
                                 <Link to="/profile" className="p-2 ml-1">
                                     <div className="w-8 h-8 rounded-full border-2 border-primary/20 overflow-hidden active:border-primary transition-all">
                                         {user.profilePhoto ? (
@@ -93,13 +113,5 @@ const Navbar = () => {
         </nav>
     );
 };
-
-const NavLink = ({ to, icon, label, id }) => (
-    <Link id={id} to={to} className="relative group px-4 py-2 flex items-center gap-2 transition-colors">
-        <span className="text-textSecondary group-hover:text-primary transition-colors">{icon}</span>
-        <span className="text-[11px] font-black uppercase tracking-widest text-textSecondary group-hover:text-textMain transition-colors">{label}</span>
-        <div className="absolute bottom-0 left-4 right-4 h-0.5 bg-primary scale-x-0 group-hover:scale-x-100 transition-transform origin-left rounded-full" />
-    </Link>
-);
 
 export default Navbar;

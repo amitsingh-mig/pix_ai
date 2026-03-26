@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Layers, ChevronLeft, ChevronRight, Folder, ArrowLeft, Plus, Edit2, Trash2, Filter, X, Calendar, Camera, MapPin, RefreshCw } from 'lucide-react';
+import { Search, Layers, ChevronLeft, ChevronRight, Folder, ArrowLeft, Plus, Edit2, Trash2, Filter, X, Calendar, Camera, MapPin, RefreshCw, Crown, Users, Image as ImageIcon, Video, ShieldCheck, Upload, Sparkles } from 'lucide-react';
 import MediaCard from '../components/MediaCard';
 import AlbumCard from '../components/AlbumCard';
 import ImageDetailsModal from '../components/ImageDetailsModal';
@@ -10,7 +10,7 @@ import FakeCursor from "../components/FakeCursor";
 import AIAssistant from "../components/AIAssistant";
 import NavigationPath from '../components/NavigationPath';
 import { useAlbums } from '../context/AlbumContext';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 
 const TABS = [
     { label: 'All', value: '' },
@@ -25,6 +25,126 @@ const MONTHS = [
 ];
 
 const YEARS = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i);
+
+// ─── Role-Based Welcome Banner ────────────────────────────────────────────────
+const RoleWelcomeBanner = ({ user }) => {
+    const [adminStats, setAdminStats] = useState(null);
+    const role = user?.role || 'user';
+
+    useEffect(() => {
+        if (role === 'admin') {
+            api.get('/admin/stats')
+                .then(res => setAdminStats(res.data.data))
+                .catch(() => {});
+        }
+    }, [role]);
+
+    if (role === 'admin') {
+        return (
+            <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-10"
+            >
+                {/* Admin Welcome Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center shadow-lg shadow-red-500/20">
+                            <Crown className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <h2 className="text-2xl font-black text-textMain tracking-tight">
+                                    Welcome, {user?.username || 'Admin'}
+                                </h2>
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-50 text-red-600 border border-red-200 text-[10px] font-black uppercase tracking-wider">
+                                    <ShieldCheck className="w-3 h-3" /> Admin
+                                </span>
+                            </div>
+                            <p className="text-sm text-textSecondary mt-0.5">Manage your platform, monitor activity, and control all media.</p>
+                        </div>
+                    </div>
+                    <div className="sm:ml-auto flex items-center gap-3">
+                        <Link
+                            to="/admin"
+                            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white border border-borderColor text-xs font-black uppercase tracking-widest text-textSecondary hover:border-primary/40 hover:text-primary transition-all shadow-sm"
+                        >
+                            <Users className="w-3.5 h-3.5" /> Manage Users
+                        </Link>
+                        <Link
+                            to="/upload"
+                            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-textMain text-xs font-black uppercase tracking-widest hover:bg-secondary transition-all shadow-lg shadow-primary/20"
+                        >
+                            <Upload className="w-3.5 h-3.5" /> Upload
+                        </Link>
+                    </div>
+                </div>
+
+                {/* Admin Stats Grid */}
+                {adminStats && (
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        {[
+                            { label: 'Total Users', value: adminStats.totalUsers, icon: Users, gradient: 'from-blue-500 to-indigo-600', bgLight: 'bg-blue-50', textColor: 'text-blue-600' },
+                            { label: 'Total Media', value: adminStats.totalMedia, icon: Layers, gradient: 'from-violet-500 to-purple-600', bgLight: 'bg-violet-50', textColor: 'text-violet-600' },
+                            { label: 'Total Images', value: adminStats.totalImages, icon: ImageIcon, gradient: 'from-amber-400 to-orange-500', bgLight: 'bg-amber-50', textColor: 'text-amber-600' },
+                            { label: 'Total Videos', value: adminStats.totalVideos, icon: Video, gradient: 'from-red-500 to-pink-600', bgLight: 'bg-red-50', textColor: 'text-red-600' },
+                        ].map((stat, i) => (
+                            <motion.div
+                                key={stat.label}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: i * 0.06 }}
+                                className="bg-white rounded-2xl p-5 border border-borderColor shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all group"
+                            >
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className={`w-10 h-10 rounded-xl ${stat.bgLight} ${stat.textColor} flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                                        <stat.icon className="w-5 h-5" />
+                                    </div>
+                                    <div className={`w-2 h-2 rounded-full bg-gradient-to-br ${stat.gradient} opacity-60`} />
+                                </div>
+                                <p className="text-[10px] font-bold text-textSecondary uppercase tracking-widest mb-1">{stat.label}</p>
+                                <p className="text-2xl font-black text-textMain">{stat.value ?? '—'}</p>
+                            </motion.div>
+                        ))}
+                    </div>
+                )}
+            </motion.div>
+        );
+    }
+
+    // Regular User Welcome
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 bg-white rounded-2xl border border-borderColor shadow-sm"
+        >
+            <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/20">
+                    <Sparkles className="w-6 h-6 text-textMain" />
+                </div>
+                <div>
+                    <div className="flex items-center gap-2">
+                        <h2 className="text-lg font-black text-textMain tracking-tight">
+                            Welcome back, {user?.username || 'there'}!
+                        </h2>
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-primary/10 text-amber-700 border border-primary/20 text-[10px] font-black uppercase tracking-wider">
+                            User
+                        </span>
+                    </div>
+                    <p className="text-sm text-textSecondary mt-0.5">Manage your personal uploads, organize albums, and explore your gallery.</p>
+                </div>
+            </div>
+            <Link
+                to="/upload"
+                className="flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-textMain text-xs font-black uppercase tracking-widest hover:bg-secondary transition-all shadow-lg shadow-primary/20 hover:-translate-y-0.5 active:scale-[0.98] whitespace-nowrap"
+            >
+                <Upload className="w-3.5 h-3.5" /> Upload Photos
+            </Link>
+        </motion.div>
+    );
+};
+
 
 const Dashboard = () => {
     const [media, setMedia] = useState([]);
@@ -134,7 +254,11 @@ const Dashboard = () => {
             }
 
             const res = await api.get(`${endpoint}?${params}`);
-            setMedia(res.data.data);
+            // STEP 3: Frontend safety filter — only display AWS S3 media
+            const s3Only = (res.data.data || []).filter(
+                item => item.url && item.url.includes('amazonaws.com')
+            );
+            setMedia(s3Only);
             setTotalPages(res.data.pages || 1);
             setTotalCount(res.data.total || 0);
         } catch (err) {
@@ -317,6 +441,12 @@ const Dashboard = () => {
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+            {/* ══════════════════════════════════════════════════════════════
+                ROLE-BASED WELCOME BANNER
+            ══════════════════════════════════════════════════════════════ */}
+            <RoleWelcomeBanner user={user} />
+
             {/* Header / Command Center */}
             <motion.div
                 initial={{ opacity: 0, y: -20 }}

@@ -8,9 +8,10 @@ const { extractExif, detectPeople, reverseGeocode, extractVideoMetadata } = requ
 const path = require('path');
 const fs = require('fs');
 
-const escapeRegex = (string) => {
-    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const escapeRegex = (text) => {
+    return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
 };
+
 
 // @desc    Upload media (single or multiple)
 // @route   POST /api/media
@@ -387,6 +388,21 @@ exports.getMedia = async (req, res, next) => {
                 });
             }
         }
+        // MimeType filter
+        if (req.query.mimetype) {
+            filter['metadata.mimetype'] = req.query.mimetype;
+        }
+
+        // Resolution filter
+        if (req.query.resolution) {
+            filter['metadata.resolution'] = req.query.resolution;
+        }
+
+        // People filter
+        if (req.query.personName) {
+            filter['metadata.people.name'] = req.query.personName;
+        }
+
         console.log(`[MEDIA DEBUG] Final Filter: ${JSON.stringify(filter)}`);
 
         const [media, total] = await Promise.all([
@@ -450,7 +466,15 @@ exports.searchMedia = async (req, res, next) => {
                     { 'metadata.exif.camera': regex },
                     { 'metadata.exif.make': regex },
                     { 'metadata.exif.model': regex },
-                    { 'metadata.device': regex }
+                    { 'metadata.device': regex },
+                    { 'aiCaptions.short': regex },
+                    { 'aiCaptions.creative': regex },
+                    { 'aiCaptions.professional': regex },
+                    { 'aiCaptions.dramatic': regex },
+                    { 'aiCaptions.sceneType': regex },
+                    { 'aiCaptions.mood': regex },
+                    { 'aiCaptions.keywords.term': regex },
+                    { 'aiCaptions.hashtags.term': regex }
                 ]
             }));
             andFilters.push(...textFilters);
@@ -501,6 +525,25 @@ exports.searchMedia = async (req, res, next) => {
             });
         }
 
+        // 4. AI-specific filters (Scene & Mood)
+        if (req.query.sceneType) {
+            andFilters.push({ 'aiCaptions.sceneType': req.query.sceneType });
+        }
+        if (req.query.mood) {
+            andFilters.push({ 'aiCaptions.mood': req.query.mood });
+        }
+
+        // 5. Advanced AI-based Filters
+        if (req.query.mimetype) {
+            andFilters.push({ 'metadata.mimetype': req.query.mimetype });
+        }
+        if (req.query.resolution) {
+            andFilters.push({ 'metadata.resolution': req.query.resolution });
+        }
+        if (req.query.personName) {
+            andFilters.push({ 'metadata.people.name': req.query.personName });
+        }
+
         // If no filters at all, find all (or we could return empty, but for "Refining" find all makes sense)
         const filter = andFilters.length > 0 ? { $and: andFilters } : {};
 
@@ -534,7 +577,7 @@ exports.getFilterOptions = async (req, res) => {
     try {
         const userId = req.user.id;
 
-        const [cameras, locations, albums] = await Promise.all([
+        const [cameras, locations, albums, sceneTypes, moods, people, resolutions, mimetypes] = await Promise.all([
             // Get distinct camera models
             Media.aggregate([
                 { $match: { uploadedBy: new mongoose.Types.ObjectId(userId) } },
@@ -568,8 +611,12 @@ exports.getFilterOptions = async (req, res) => {
                     }
                 }
             ]),
-            // Get distinct albums
-            Album.find({ uploadedBy: userId }).distinct('name')
+            Album.find({ uploadedBy: userId }).distinct('name'),
+            Media.distinct('aiCaptions.sceneType', { uploadedBy: userId }),
+            Media.distinct('aiCaptions.mood', { uploadedBy: userId }),
+            Media.distinct('metadata.people.name', { uploadedBy: userId }),
+            Media.distinct('metadata.resolution', { uploadedBy: userId }),
+            Media.distinct('metadata.mimetype', { uploadedBy: userId })
         ]);
 
         const formatFilter = (arr) => (arr && arr[0]?.all ? arr[0].all.filter(Boolean).sort() : []);
@@ -579,7 +626,12 @@ exports.getFilterOptions = async (req, res) => {
             data: {
                 cameras: formatFilter(cameras),
                 locations: formatFilter(locations),
-                albums: albums.filter(Boolean).sort()
+                albums: albums.filter(Boolean).sort(),
+                sceneTypes: sceneTypes.filter(Boolean).sort(),
+                moods: moods.filter(Boolean).sort(),
+                people: people.filter(Boolean).sort(),
+                resolutions: resolutions.filter(Boolean).sort(),
+                mimetypes: mimetypes.filter(Boolean).sort()
             }
         });
     } catch (err) {
@@ -806,3 +858,187 @@ exports.updateMediaTags = async (req, res, next) => {
     }
 };
 
+// @desc    Generate AI captions & keywords for a media item
+// @route   POST /api/media/:id/captions
+// @access  Private
+exports.generateMediaCaptions = async (req, res, next) => {
+    try {
+        const media = await Media.findById(req.params.id);
+        if (!media) {
+            return res.status(404).json({ success: false, error: 'Media not found' });
+        }
+
+        // Only images supported
+        if (media.type !== 'image') {
+            return res.status(400).json({ success: false, error: 'Caption generation is only available for images.' });
+        }
+
+        // Authorization
+        if (media.uploadedBy.toString() !== req.user.id && req.user.role !== 'admin') {
+            return res.status(401).json({ success: false, error: 'Not authorized' });
+        }
+
+        const s3Key = media.metadata?.key;
+        if (!s3Key) {
+            return res.status(400).json({ success: false, error: 'Image S3 key not found. Cannot generate captions.' });
+        }
+
+        const { generateCaptionsAndKeywords } = require('../utils/ai');
+        const User = require('../models/User');
+
+        const language = req.body.language || 'en';
+        const existingTags = media.tags || [];
+
+        // Fetch user preferences for personalization
+        const user = await User.findById(req.user.id);
+        const userPreferences = user?.aiPreferences || {};
+
+        console.log(`[CAPTIONS] Generating personalized captions for "${media.title}" (tone=${userPreferences.preferredTone || 'casual'})...`);
+        const captions = await generateCaptionsAndKeywords(s3Key, {
+            language,
+            existingTags,
+            userPreferences
+        });
+
+        // Persist to database
+        await Media.updateOne(
+            { _id: media._id },
+            { $set: { aiCaptions: captions } }
+        );
+
+        console.log(`[CAPTIONS] ✅ Saved personalized captions for "${media.title}"`);
+        res.status(200).json({ success: true, data: captions });
+
+    } catch (err) {
+        console.error('[CAPTIONS] Error:', err.message);
+        next(err);
+    }
+};
+
+// @desc    Update AI captions & keywords (user edits)
+// @route   PUT /api/media/:id/captions
+// @access  Private
+exports.updateMediaCaptions = async (req, res, next) => {
+    try {
+        const media = await Media.findById(req.params.id);
+        if (!media) {
+            return res.status(404).json({ success: false, error: 'Media not found' });
+        }
+
+        if (media.uploadedBy.toString() !== req.user.id && req.user.role !== 'admin') {
+            return res.status(401).json({ success: false, error: 'Not authorized' });
+        }
+
+        const { short, creative, professional, dramatic, keywords, hashtags } = req.body;
+
+        const updatedCaptions = {
+            ...media.aiCaptions?.toObject?.() || media.aiCaptions || {},
+            ...(short !== undefined && { short }),
+            ...(creative !== undefined && { creative }),
+            ...(professional !== undefined && { professional }),
+            ...(dramatic !== undefined && { dramatic }),
+            ...(Array.isArray(keywords) && { keywords: keywords.filter(Boolean) }),
+            ...(Array.isArray(hashtags) && { hashtags: hashtags.filter(Boolean) }),
+            generatedAt: media.aiCaptions?.generatedAt || new Date()
+        };
+
+        await Media.updateOne({ _id: media._id }, { $set: { aiCaptions: updatedCaptions } });
+
+        res.status(200).json({ success: true, data: updatedCaptions });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Get real-time search suggestions
+// @route   GET /api/media/suggestions
+// @access  Public (or Private with userId from dashboard)
+exports.getSearchSuggestions = async (req, res, next) => {
+    try {
+        const { q } = req.query;
+        if (!q || q.length < 2) {
+            return res.status(200).json({ success: true, data: { keywords: [], locations: [], cameras: [], media: [] } });
+        }
+
+        const userId = req.user?.id || req.body.userId || null;
+        const filter = userId ? { uploadedBy: userId } : {};
+        const queryRegex = new RegExp(`^${escapeRegex(q)}|\\s${escapeRegex(q)}`, 'i');
+
+        const [tags, locations, cameras, sampleMedia] = await Promise.all([
+            // Match Tags (Keywords/Moods/Scenes)
+            Media.aggregate([
+                { $match: { ...filter } },
+                { $unwind: "$tags" },
+                { $match: { tags: { $regex: queryRegex } } },
+                { $group: { _id: "$tags", count: { $sum: 1 } } },
+                { $sort: { count: -1 } },
+                { $limit: 5 }
+            ]),
+            // Match Locations
+            Media.aggregate([
+                { $match: { ...filter } },
+                {
+                    $project: {
+                        allLocs: [
+                            "$location.name",
+                            "$location.address",
+                            "$metadata.location.city",
+                            "$metadata.location.placeName"
+                        ]
+                    }
+                },
+                { $unwind: "$allLocs" },
+                { $match: { allLocs: { $regex: queryRegex } } },
+                { $group: { _id: "$allLocs", count: { $sum: 1 } } },
+                { $sort: { count: -1 } },
+                { $limit: 5 }
+            ]),
+            // Match Cameras
+            Media.aggregate([
+                { $match: { ...filter } },
+                {
+                    $project: {
+                        allCams: [
+                            "$device",
+                            "$metadata.camera.model",
+                            "$metadata.camera.make"
+                        ]
+                    }
+                },
+                { $unwind: "$allCams" },
+                { $match: { allCams: { $regex: queryRegex } } },
+                { $group: { _id: "$allCams", count: { $sum: 1 } } },
+                { $sort: { count: -1 } },
+                { $limit: 5 }
+            ]),
+            // Match actual Media Samples
+            Media.find({
+                ...filter,
+                $or: [
+                    { title: { $regex: queryRegex } },
+                    { tags: { $in: [queryRegex] } }
+                ]
+            })
+            .select('title url type metadata.mimetype')
+            .limit(4)
+        ]);
+
+        res.status(200).json({
+            success: true,
+            data: {
+                keywords: tags.map(t => ({ text: t._id, count: t.count })),
+                locations: locations.map(l => ({ text: l._id, count: l.count })),
+                cameras: cameras.map(c => ({ text: c._id, count: c.count })),
+                media: sampleMedia.map(m => ({
+                    id: m._id,
+                    title: m.title,
+                    url: m.url,
+                    type: m.type
+                }))
+            }
+        });
+    } catch (err) {
+        console.error('Suggestions Error:', err);
+        res.status(500).json({ success: false, error: 'Server Error' });
+    }
+};

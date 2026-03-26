@@ -24,26 +24,26 @@ const ROLE_CONFIG = {
         icon: Crown,
         colors: 'bg-red-500 text-white',
         glow: 'shadow-red-500/20',
-        badgeClass: 'bg-red-50 text-red-600 border-red-200',
-        activeClass: 'bg-danger text-white shadow-lg shadow-danger/20',
+        badgeClass: 'bg-red-50 text-red-600 border-red-100',
+        activeClass: 'bg-gradient-to-r from-red-500 to-rose-600 text-white shadow-md shadow-red-200',
         sectionLabel: 'Admin Controls',
     },
     user: {
         label: 'User',
         icon: User,
-        colors: 'bg-[#FFD41D] text-black',
-        glow: 'shadow-[#FFD41D]/20',
-        badgeClass: 'bg-[#FFD41D]/10 text-amber-700 border-[#FFD41D]/30',
-        activeClass: 'bg-primary text-textMain shadow-lg shadow-primary/20',
+        colors: 'bg-amber-500 text-white',
+        glow: 'shadow-amber-500/10',
+        badgeClass: 'bg-amber-50 text-amber-600 border-amber-100',
+        activeClass: 'bg-gradient-to-r from-red-500 to-rose-600 text-white shadow-md shadow-red-200',
         sectionLabel: 'My Workspace',
     },
     guest: {
         label: 'Guest',
         icon: Eye,
         colors: 'bg-gray-400 text-white',
-        glow: 'shadow-gray-400/20',
-        badgeClass: 'bg-gray-50 text-gray-600 border-gray-200',
-        activeClass: 'bg-gray-200 text-gray-800',
+        glow: 'shadow-gray-400/10',
+        badgeClass: 'bg-gray-50 text-gray-600 border-gray-100',
+        activeClass: 'bg-gradient-to-r from-red-500 to-rose-600 text-white shadow-md shadow-red-200',
         sectionLabel: 'Browse',
     },
 };
@@ -113,17 +113,15 @@ const Sidebar = () => {
                 </Link>
 
                 {/* Role badge */}
-                <div className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl border ${config.badgeClass} transition-all`}>
-                    <div className={`w-7 h-7 rounded-xl flex items-center justify-center ${config.colors} shadow-md ${config.glow}`}>
+                <div className={`flex items-center gap-3 px-4 py-3.5 rounded-2xl border ${config.badgeClass} transition-all bg-white/50`}>
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${config.colors} shadow-md ${config.glow}`}>
                         <RoleIcon className="w-4 h-4" />
                     </div>
                     <div className="min-w-0 flex-1">
-                        <p className="text-[9px] font-bold uppercase tracking-widest opacity-60">Signed in as</p>
-                        <p className="text-[11px] font-black truncate">{user?.username || 'Guest'}</p>
+                        <p className="text-[10px] font-black text-textMain uppercase tracking-[0.05em] leading-tight">
+                            Signed in as <span className="block text-[9px] font-bold text-textSecondary opacity-80 mt-0.5">{config.label}</span>
+                        </p>
                     </div>
-                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider border ${config.badgeClass}`}>
-                        {config.label}
-                    </span>
                 </div>
             </div>
 
@@ -141,13 +139,13 @@ const Sidebar = () => {
                         <Link
                             key={item.to + item.label}
                             to={item.to}
-                            className={`flex items-center gap-3.5 px-4 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all ${
+                            className={`flex items-center gap-3.5 px-4 py-3.5 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all duration-200 ${
                                 active
                                     ? config.activeClass
-                                    : 'text-textSecondary hover:bg-bg hover:text-textMain'
+                                    : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'
                             }`}
                         >
-                            <span className={`${active ? 'scale-110' : ''} transition-transform`}>
+                            <span className={`${active ? 'text-white' : ''} transition-colors`}>
                                 {item.icon}
                             </span>
                             {item.label}
@@ -167,13 +165,15 @@ const Sidebar = () => {
                                 <Link
                                     key={item.to + item.label}
                                     to={item.to}
-                                    className={`flex items-center gap-3.5 px-4 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all ${
+                                    className={`flex items-center gap-3.5 px-4 py-3.5 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all duration-200 ${
                                         active
-                                            ? 'bg-danger text-white shadow-lg shadow-danger/20'
-                                            : 'text-textSecondary hover:bg-red-50 hover:text-danger'
+                                            ? 'bg-gradient-to-r from-red-500 to-rose-600 text-white shadow-md shadow-red-200'
+                                            : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'
                                     }`}
                                 >
-                                    {item.icon}
+                                    <span className={`${active ? 'text-white' : ''} transition-colors`}>
+                                        {item.icon}
+                                    </span>
                                     {item.label}
                                 </Link>
                             );

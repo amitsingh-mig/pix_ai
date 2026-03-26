@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+    import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
-import { Upload as UploadIcon, X, FileImage, Plus, FolderPlus, Loader2, MapPin } from 'lucide-react';
+import { Upload as UploadIcon, X, FileImage, Plus, FolderPlus, Loader2, MapPin, Sparkles, Zap, Tag, MessageSquare } from 'lucide-react';
 import { useAlbums } from '../context/AlbumContext';
 import LocationAutocomplete from '../components/LocationAutocomplete';
 
@@ -18,6 +18,7 @@ const Upload = () => {
     const { albums, refreshAlbums, addAlbum, loading: fetchingAlbums } = useAlbums();
     const [progress, setProgress] = useState(0);
     const [error, setError] = useState('');
+    const [aiPhase, setAiPhase] = useState(false); // true = AI analysis phase
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -115,11 +116,12 @@ const Upload = () => {
 
             localStorage.setItem('justUploaded', 'true');
             localStorage.setItem('highlightAI', 'true');
-            
-            // Short delay to allow state update to be visible in debugger if needed, then navigate
+
+            // Show AI analysis phase briefly before navigating
+            setAiPhase(true);
             setTimeout(() => {
                 navigate('/');
-            }, 500);
+            }, 2500);
         } catch (err) {
             console.error('Upload Error Handle:', err);
             setError(err.response?.data?.error || err.response?.data?.message || 'Upload failed. Please try again.');
@@ -182,7 +184,8 @@ const Upload = () => {
                         )}
                     </div>
 
-                    {loading && (
+                    {/* Upload progress bar */}
+                    {loading && !aiPhase && (
                         <div>
                             <div className="h-2 w-full bg-borderColor/30 rounded-full overflow-hidden">
                                 <div className="h-full bg-primary transition-all duration-300" style={{ width: `${progress}%` }} />
@@ -190,6 +193,36 @@ const Upload = () => {
                             <div className="flex justify-between items-center mt-2">
                                 <p className="text-xs font-semibold text-textSecondary">Uploading {files.length} items...</p>
                                 <p className="text-xs font-bold text-primary">{progress}%</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* AI analysis phase overlay */}
+                    {aiPhase && (
+                        <div className="rounded-2xl bg-gradient-to-br from-violet-50 to-purple-50 border border-violet-100 p-6">
+                            <div className="flex items-center gap-3 mb-5">
+                                <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center">
+                                    <Sparkles className="w-5 h-5 text-violet-600 animate-pulse" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-black text-violet-700">AI is analyzing your images…</p>
+                                    <p className="text-xs text-violet-500 font-medium mt-0.5">This runs in the background — you'll be redirected shortly.</p>
+                                </div>
+                            </div>
+                            <div className="space-y-3">
+                                {[
+                                    { icon: Tag, label: 'Auto-generating AI tags (Rekognition + OpenAI)' },
+                                    { icon: MessageSquare, label: 'Preparing caption generation per image' },
+                                    { icon: Zap, label: 'Extracting EXIF & estimating camera settings' },
+                                ].map(({ icon: Icon, label }, i) => (
+                                    <div key={i} className="flex items-center gap-3">
+                                        <div className="w-7 h-7 rounded-lg bg-white border border-violet-200 flex items-center justify-center">
+                                            <Icon className="w-3.5 h-3.5 text-violet-500" />
+                                        </div>
+                                        <p className="text-xs font-semibold text-violet-700">{label}</p>
+                                        <Loader2 className="w-3 h-3 text-violet-400 animate-spin ml-auto" style={{ animationDelay: `${i * 0.2}s` }} />
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     )}

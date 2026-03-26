@@ -270,35 +270,115 @@ const getFallbackTags = () => {
     return pool.slice(0, 2);
 };
 
+// ─── STEP 6: AI Content Engine Upgraded ──────────────────────────────────────
+/**
+ * Generates ranked & optimized captions + SEO keywords for an image using GPT-4o Vision.
+ *
+ * @param {string} s3Key         - S3 object key
+ * @param {Object} [options]
+ * @param {string} [options.language='en'] - Target language code
+ * @param {string[]} [options.existingTags=[]] - Existing Rekognition tags
+ * @param {Object} [options.userPreferences={}] - User preferences for personalization
+ * @returns {Promise<Object>}
+ */
+exports.generateCaptionsAndKeywords = async (s3Key, { language = 'en', existingTags = [], userPreferences = {} } = {}) => {
+    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY.startsWith('your_')) {
+        console.warn('[AI ENGINE] OpenAI API key not set — returning fallback content.');
+        return {
+            short: 'A beautiful captured moment.',
+            creative: 'Where light meets life — a frame frozen in time.',
+            professional: 'High-quality image showcasing compelling visual composition.',
+            dramatic: 'An intense, arresting moment caught in perfect clarity.',
+            recommended: 'short',
+            keywords: (existingTags.length > 0 ? existingTags.slice(0, 15) : ['photo', 'image']).map(k => ({ term: k, score: 85 })),
+            hashtags: ['#photo', '#photography'].map(h => ({ term: h, rank: 1 })),
+            sceneType: 'general',
+            mood: 'neutral',
+            language,
+            generatedAt: new Date()
+        };
+    }
+
+    try {
+        const OpenAI = require('openai');
+        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+        const cmd = new GetObjectCommand({
+            Bucket: process.env.AWS_BUCKET_NAME,
+            Key: s3Key,
+        });
+        const signedUrl = await getSignedUrl(s3, cmd, { expiresIn: 180 });
+
+        const tagContext = existingTags.length > 0 ? `Tags detected: ${existingTags.slice(0, 15).join(', ')}.` : '';
+        const personalization = userPreferences.preferredTone
+            ? `PERSONALIZATION: Use a "${userPreferences.preferredTone}" tone. Priority keywords: ${userPreferences.brandKeywords?.join(', ') || 'none'}.`
+            : '';
+
+        const systemPrompt = `You are the Pix AI Content Optimization Engine. You generate high-performing, SEO-optimized metadata.`;
+
+        const userPrompt = `${tagContext}
+${personalization}
+
+Perform deep analysis and return a JSON object with:
+{
+  "sceneType": "portrait | landscape | travel | street | product | fashion | food | architecture | nature | event | sports | abstract | wildlife | other",
+  "mood": "mood descriptors (e.g. 'vibrant joyful')",
+  "short": "Punchy < 12 words",
+  "creative": "Evocative storytelling",
+  "professional": "Direct, informative",
+  "dramatic": "Cinematic impact",
+  "recommended": "short | creative | professional | dramatic",
+  "keywords": [
+    { "term": "keyword", "score": 80-100, "reason": "SEO relevance" }
+  ],
+  "hashtags": [
+    { "term": "#tag", "engagement": "high | medium | low", "rank": 1-15 }
+  ],
+  "personalizationNotes": "Short note on how user tone was applied"
+}
+
+Language: ${language}.
+Return ONLY valid JSON.`;
+
+        const response = await openai.chat.completions.create({
+            model: 'gpt-4o',
+            max_tokens: 1200,
+            response_format: { type: 'json_object' },
+            messages: [
+                { role: 'system', content: systemPrompt },
+                {
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: userPrompt },
+                        { type: 'image_url', image_url: { url: signedUrl, detail: 'auto' } }
+                    ]
+                }
+            ]
+        });
+
+        const result = JSON.parse(response.choices[0]?.message?.content || '{}');
+        return {
+            ...result,
+            language,
+            generatedAt: new Date()
+        };
+
+    } catch (err) {
+        console.error('[AI ENGINE] Error:', err.message);
+        return null;
+    }
+};
+
 // ─── MAIN EXPORT: generateTags ────────────────────────────────────────────────
 /**
  * Generates AI tags for an image stored in S3.
- *
- * @param {string} s3Key - The S3 object key (e.g. "media/1710000000000.jpg")
- * @param {Object} options
- * @param {boolean} [options.enrichWithOpenAI=true] - Whether to also call OpenAI for extra tags
- * @returns {Promise<string[]>} - Deduplicated, cleaned array of lowercase tag strings
  */
 exports.generateTags = async (s3Key, { enrichWithOpenAI = true } = {}) => {
-    console.log(`[AI TAGS] Starting tag generation for: ${s3Key}`);
-
-    // ── Primary: Rekognition label detection ────────────────────────────────
     const rekTags = await detectLabelsRekognition(s3Key);
-
-    // ── Secondary: OpenAI enrichment (runs in parallel with moderation check) ─
     const [openAiTags] = await Promise.all([
         enrichWithOpenAI ? enrichTagsOpenAI(s3Key, rekTags) : Promise.resolve([]),
-        detectModerationTags(s3Key), // Fired for side-effects/logging; not merged into tags
+        detectModerationTags(s3Key),
     ]);
-
-    // ── Merge + deduplicate ──────────────────────────────────────────────────
     const merged = Array.from(new Set([...rekTags, ...openAiTags]));
-
-    if (merged.length === 0) {
-        console.warn('[AI TAGS] All AI services returned no tags. Using fallback.');
-        return getFallbackTags();
-    }
-
-    console.log(`[AI TAGS] Final tag set (${merged.length}): ${merged.join(', ')}`);
-    return merged;
+    return merged.length === 0 ? getFallbackTags() : merged;
 };

@@ -89,6 +89,28 @@ const MediaSchema = new mongoose.Schema({
         resolution: String,
         photographyInsight: String
     },
+    aiCaptions: {
+        short: String,
+        creative: String,
+        professional: String,
+        dramatic: String,
+        recommended: String,
+        keywords: [{
+            term: String,
+            score: Number,
+            reason: String
+        }],
+        hashtags: [{
+            term: String,
+            engagement: String,
+            rank: Number
+        }],
+        sceneType: String,
+        mood: String,
+        personalizationNotes: String,
+        language: { type: String, default: 'en' },
+        generatedAt: Date
+    },
     createdAt: {
         type: Date,
         default: Date.now

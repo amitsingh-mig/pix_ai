@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Layers, ChevronLeft, ChevronRight, Folder, ArrowLeft, Plus, Edit2, Trash2, Filter, X, Calendar, Camera, MapPin, RefreshCw, Crown, Users, Image as ImageIcon, Video, ShieldCheck, Upload, Sparkles } from 'lucide-react';
+import { Search, Layers, ChevronLeft, ChevronRight, Folder, ArrowLeft, Plus, Edit2, Trash2, Filter, X, Calendar, Camera, MapPin, RefreshCw, Crown, Users, Image as ImageIcon, Video, ShieldCheck, Upload, Sparkles, MessageSquare } from 'lucide-react';
 import MediaCard from '../components/MediaCard';
 import AlbumCard from '../components/AlbumCard';
 import ImageDetailsModal from '../components/ImageDetailsModal';
@@ -156,14 +156,19 @@ const Dashboard = () => {
     const [typeFilter, setTypeFilter] = useState(initialTab);
     const [currentAlbum, setCurrentAlbum] = useState(null);
     const [page, setPage] = useState(1);
-    const [filterOptions, setFilterOptions] = useState({ cameras: [], locations: [], albums: [] });
+    const [filterOptions, setFilterOptions] = useState({ cameras: [], locations: [], albums: [], sceneTypes: [], moods: [], people: [], resolutions: [], mimetypes: [] });
     const [activeFilters, setActiveFilters] = useState({
         search: '',
         camera: '',
         location: '',
         startDate: '',
         endDate: '',
-        dateMode: 'range' // range, single, month, year
+        dateMode: 'range',
+        sceneType: '',
+        mood: '',
+        personName: '',
+        resolution: '',
+        mimetype: ''
     });
     const [stagedFilters, setStagedFilters] = useState({
         search: '',
@@ -171,9 +176,52 @@ const Dashboard = () => {
         location: '',
         startDate: '',
         endDate: '',
-        dateMode: 'range'
+        dateMode: 'range',
+        sceneType: '',
+        mood: '',
+        personName: '',
+        resolution: '',
+        mimetype: ''
     });
     const [showFilters, setShowFilters] = useState(false);
+    const [searchQuery, setSearchQuery] = useState(urlQuery);
+    const [suggestions, setSuggestions] = useState({ keywords: [], locations: [], cameras: [], media: [] });
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const [isSuggesting, setIsSuggesting] = useState(false);
+
+    // Fetch Search Suggestions
+    const fetchSuggestions = useCallback(async (q) => {
+        if (!q || q.length < 2) {
+            setSuggestions({ keywords: [], locations: [], cameras: [], media: [] });
+            return;
+        }
+        setIsSuggesting(true);
+        try {
+            const res = await api.get(`/media/suggestions?q=${encodeURIComponent(q)}`);
+            setSuggestions(res.data.data);
+        } catch (err) {
+            console.error('Suggestions Error:', err);
+        } finally {
+            setIsSuggesting(false);
+        }
+    }, []);
+
+    // Debounce Search Suggestions
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (searchQuery && searchQuery.length >= 2) {
+                fetchSuggestions(searchQuery);
+            } else {
+                setSuggestions({ keywords: [], locations: [], cameras: [], media: [] });
+            }
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [searchQuery, fetchSuggestions]);
+
+    // Sync search input with URL query
+    useEffect(() => {
+        setSearchQuery(urlQuery);
+    }, [urlQuery]);
 
     // Reset page when search query changes to avoid stuck on high pages
     useEffect(() => {
@@ -233,7 +281,7 @@ const Dashboard = () => {
             let endpoint = '/media';
 
             // If we have a general search query OR filters OR we're in an album with a search, use search endpoint
-            const hasActiveFilters = filters.search || filters.camera || filters.location || filters.startDate || filters.endDate;
+            const hasActiveFilters = filters.search || filters.camera || filters.location || filters.startDate || filters.endDate || filters.sceneType || filters.mood;
 
             if (q || hasActiveFilters || (albumId && filters.search)) {
                 endpoint = '/media/search';
@@ -247,6 +295,11 @@ const Dashboard = () => {
                 if (filters.location) params.set('location', filters.location);
                 if (filters.startDate) params.set('startDate', filters.startDate);
                 if (filters.endDate) params.set('endDate', filters.endDate);
+                if (filters.sceneType) params.set('sceneType', filters.sceneType);
+                if (filters.mood) params.set('mood', filters.mood);
+                if (filters.personName) params.set('personName', filters.personName);
+                if (filters.resolution) params.set('resolution', filters.resolution);
+                if (filters.mimetype) params.set('mimetype', filters.mimetype);
             } else {
                 if (type && type !== 'albums') params.set('type', type);
                 if (albumId) params.set('albumId', albumId);
@@ -327,14 +380,24 @@ const Dashboard = () => {
         const location = searchParams.get('location') || '';
         const startDate = searchParams.get('startDate') || '';
         const endDate = searchParams.get('endDate') || '';
-
-        if (q || camera || location || startDate || endDate) {
+        const sceneType = searchParams.get('sceneType') || '';
+        const mood = searchParams.get('mood') || '';
+        const personName = searchParams.get('personName') || '';
+        const resolution = searchParams.get('resolution') || '';
+        const mimetype = searchParams.get('mimetype') || '';
+ 
+        if (q || camera || location || startDate || endDate || sceneType || mood || personName || resolution || mimetype) {
             const filtersFromUrl = {
                 search: q,
                 camera,
                 location,
                 startDate,
                 endDate,
+                sceneType,
+                mood,
+                personName,
+                resolution,
+                mimetype,
                 dateMode: 'range'
             };
             setActiveFilters(filtersFromUrl);
@@ -345,9 +408,14 @@ const Dashboard = () => {
     const handleSearch = (e) => {
         e.preventDefault();
         setPage(1);
-        if (typeFilter !== 'albums' || currentAlbum) {
-            fetchMedia(search, typeFilter, 1);
+        
+        const newParams = new URLSearchParams(searchParams);
+        if (searchQuery) {
+            newParams.set('q', searchQuery);
+        } else {
+            newParams.delete('q');
         }
+        setSearchParams(newParams);
     };
 
     const handleTabChange = (val) => {
@@ -384,6 +452,11 @@ const Dashboard = () => {
         if (filters.location) newParams.set('location', filters.location);
         if (filters.startDate) newParams.set('startDate', filters.startDate);
         if (filters.endDate) newParams.set('endDate', filters.endDate);
+        if (filters.sceneType) newParams.set('sceneType', filters.sceneType);
+        if (filters.mood) newParams.set('mood', filters.mood);
+        if (filters.personName) newParams.set('personName', filters.personName);
+        if (filters.resolution) newParams.set('resolution', filters.resolution);
+        if (filters.mimetype) newParams.set('mimetype', filters.mimetype);
         if (searchParams.get('tab')) newParams.set('tab', searchParams.get('tab'));
         if (searchParams.get('search') === 'true') newParams.set('search', 'true');
 
@@ -508,30 +581,212 @@ const Dashboard = () => {
                 </div>
 
                 {/* Sub-header actions / Interface */}
-                <div className="flex items-center gap-3">
-                    <button
-                        onClick={() => {
-                            setShowFilters(!showFilters);
-                            if (!showFilters) setStagedFilters(activeFilters);
-                        }}
-                        className={`flex items-center gap-2.5 px-6 py-3.5 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all shadow-sm border ${showFilters ? 'bg-primary border-primary text-textMain' : 'bg-white border-borderColor/50 text-textSecondary hover:border-primary/30'}`}
-                    >
-                        <Filter className={`w-4 h-4 ${showFilters ? 'animate-pulse' : ''}`} />
-                        <span>Filters</span>
-                        {Object.values(activeFilters).some(v => v) && (
-                            <span className="w-2 h-2 rounded-full bg-accent animate-bounce" />
-                        )}
-                    </button>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 flex-1 lg:flex-initial">
+                    {/* Persistent Search Bar (Normal AI Search) */}
+                    <div className="flex-1 min-w-0 sm:min-w-[300px] lg:min-w-[450px] relative">
+                        <form onSubmit={handleSearch} className="relative group">
+                            <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none">
+                                <Search className={`w-4 h-4 text-textSecondary group-focus-within:text-primary transition-colors duration-300 ${isSuggesting ? 'animate-spin' : ''}`} />
+                                <Sparkles className="w-3 h-3 text-secondary animate-pulse opacity-60" />
+                            </div>
+                            <input
+                                type="text"
+                                placeholder="Search keyword, camera, or location..."
+                                value={searchQuery}
+                                onFocus={() => setShowSuggestions(true)}
+                                onChange={(e) => {
+                                    setSearchQuery(e.target.value);
+                                    setShowSuggestions(true);
+                                }}
+                                className="w-full bg-white border border-borderColor/50 rounded-2xl pl-14 pr-10 py-3.5 text-[11px] font-black uppercase tracking-widest focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all group-hover:border-primary/30 shadow-sm"
+                            />
+                            {searchQuery && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSearchQuery('');
+                                        const newParams = new URLSearchParams(searchParams);
+                                        newParams.delete('q');
+                                        setSearchParams(newParams);
+                                        setShowSuggestions(false);
+                                    }}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-xl bg-bg flex items-center justify-center text-textSecondary hover:text-accent transition-all"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            )}
+                        </form>
 
-                    {typeFilter === 'albums' && !currentAlbum && (
+                        {/* Real-time Smart Suggestions Dropdown */}
+                        <AnimatePresence>
+                            {showSuggestions && (searchQuery.length >= 2) && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                    className="absolute top-full left-0 right-0 mt-3 bg-white border border-borderColor/50 rounded-3xl shadow-2xl p-6 z-[100] max-h-[500px] overflow-y-auto custom-scrollbar"
+                                >
+                                    <div className="flex flex-col gap-8">
+                                        {/* Categories Grid */}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pb-6 border-b border-borderColor/20">
+                                            {/* AI Keywords */}
+                                            {suggestions.keywords.length > 0 && (
+                                                <div className="space-y-4">
+                                                    <p className="text-[10px] font-black text-textSecondary uppercase tracking-[0.2em] flex items-center gap-2">
+                                                        <Sparkles className="w-3 h-3 text-secondary" /> AI Keywords
+                                                    </p>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {suggestions.keywords.map(k => (
+                                                            <button 
+                                                                key={k.text} 
+                                                                onClick={() => {
+                                                                    setSearchQuery(k.text);
+                                                                    handleSearch({ preventDefault: () => {}, target: { value: k.text } });
+                                                                    setShowSuggestions(false);
+                                                                }}
+                                                                className="px-3 py-1.5 bg-bg hover:bg-primary/10 rounded-xl text-[10px] font-bold text-textMain border border-borderColor/30 transition-all hover:border-primary/30 flex items-center gap-1.5"
+                                                            >
+                                                                #{k.text} <span className="opacity-40 text-[8px]">{k.count}</span>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Smart Locations */}
+                                            {suggestions.locations.length > 0 && (
+                                                <div className="space-y-4">
+                                                    <p className="text-[10px] font-black text-textSecondary uppercase tracking-[0.2em] flex items-center gap-2">
+                                                        <MapPin className="w-3 h-3 text-red-500" /> Top Locations
+                                                    </p>
+                                                    <div className="space-y-1">
+                                                        {suggestions.locations.map(l => (
+                                                            <button 
+                                                                key={l.text} 
+                                                                onClick={() => {
+                                                                    setSearchQuery(l.text);
+                                                                    handleSearch({ preventDefault: () => {} });
+                                                                    setShowSuggestions(false);
+                                                                }}
+                                                                className="w-full text-left px-3 py-2 hover:bg-red-50 rounded-xl text-[10px] font-bold text-textMain transition-all flex items-center justify-between group"
+                                                            >
+                                                                <span className="truncate pr-4">{l.text}</span>
+                                                                <span className="text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">Find in {l.count} items</span>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Camera Details */}
+                                        {suggestions.cameras.length > 0 && (
+                                            <div className="space-y-4">
+                                                <p className="text-[10px] font-black text-textSecondary uppercase tracking-[0.2em] flex items-center gap-2">
+                                                    <Camera className="w-3 h-3 text-violet-500" /> Hardware / Devices
+                                                </p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {suggestions.cameras.map(c => (
+                                                        <button 
+                                                            key={c.text} 
+                                                            onClick={() => {
+                                                                    setSearchQuery(c.text);
+                                                                    handleSearch({ preventDefault: () => {} });
+                                                                    setShowSuggestions(false);
+                                                            }}
+                                                            className="px-4 py-2 bg-violet-50 hover:bg-violet-100 rounded-xl text-[10px] font-black text-violet-700 transition-all border border-violet-100"
+                                                        >
+                                                            {c.text}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Quick Media Previews */}
+                                        {suggestions.media.length > 0 && (
+                                            <div className="space-y-4">
+                                                <p className="text-[10px] font-black text-textSecondary uppercase tracking-[0.2em] flex items-center gap-2">
+                                                    <ImageIcon className="w-3 h-3 text-emerald-500" /> Match Previews
+                                                </p>
+                                                <div className="grid grid-cols-4 gap-3">
+                                                    {suggestions.media.map(m => (
+                                                        <button 
+                                                            key={m.id}
+                                                            onClick={() => {
+                                                                setSelectedImage(m); // Select it
+                                                                setShowSuggestions(false);
+                                                            }}
+                                                            className="aspect-square rounded-2xl overflow-hidden group shadow-sm bg-bg relative"
+                                                        >
+                                                            <img 
+                                                                src={m.url} 
+                                                                alt={m.title} 
+                                                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
+                                                            />
+                                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                                {m.type === 'video' ? <Video className="w-6 h-6 text-white" /> : <Layers className="w-6 h-6 text-white" />}
+                                                            </div>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* No Results */}
+                                        {!isSuggesting && !suggestions.keywords.length && !suggestions.locations.length && !suggestions.cameras.length && (
+                                            <div className="py-10 text-center space-y-3">
+                                                <div className="w-16 h-16 bg-bg rounded-[24px] flex items-center justify-center mx-auto text-textSecondary/50">
+                                                    <Search className="w-8 h-8" />
+                                                </div>
+                                                <p className="text-[10px] font-black text-textSecondary uppercase tracking-widest">No smart results found for "{searchQuery}"</p>
+                                                <p className="text-[9px] font-bold text-textSecondary/60 italic lowercase">Try searching for a city, camera model, or AI keyword.</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    {/* Action Footer */}
+                                    <div className="mt-8 pt-4 border-t border-borderColor/20 flex items-center justify-between">
+                                        <p className="text-[9px] font-bold text-textSecondary flex items-center gap-1.5 opacity-60 italic">
+                                            <Sparkles className="w-2.5 h-2.5" /> <span>Press Enter to view all results</span>
+                                        </p>
+                                        <button 
+                                            onClick={() => setShowSuggestions(false)}
+                                            className="text-[9px] font-black uppercase text-accent hover:underline"
+                                        >
+                                            Dismiss
+                                        </button>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
+
+                    <div className="flex items-center gap-2">
                         <button
-                            onClick={handleCreateAlbum}
-                            className="flex items-center gap-2.5 px-6 py-3.5 rounded-2xl text-[11px] font-black uppercase tracking-[0.15em] text-textMain bg-primary hover:bg-secondary transition-all shadow-xl shadow-primary/20 group"
+                            onClick={() => {
+                                setShowFilters(!showFilters);
+                                if (!showFilters) setStagedFilters(activeFilters);
+                            }}
+                            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2.5 px-6 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all shadow-sm border ${showFilters ? 'bg-primary border-primary text-textMain' : 'bg-white border-borderColor/50 text-textSecondary hover:border-primary/30'}`}
                         >
-                            <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform duration-300" />
-                            <span>New Collection</span>
+                            <Filter className={`w-4 h-4 ${showFilters ? 'animate-pulse' : ''}`} />
+                            <span className="hidden sm:inline">Filters</span>
+                            {Object.values(activeFilters).some(v => v !== '' && v !== 'range') && (
+                                <span className="w-2 h-2 rounded-full bg-accent animate-bounce" />
+                            )}
                         </button>
-                    )}
+
+                        {typeFilter === 'albums' && !currentAlbum && (
+                            <button
+                                onClick={handleCreateAlbum}
+                                className="flex items-center gap-2.5 px-6 py-3.5 rounded-2xl text-[11px] font-black uppercase tracking-[0.15em] text-textMain bg-primary hover:bg-secondary transition-all shadow-xl shadow-primary/20 group"
+                            >
+                                <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform duration-300" />
+                                <span className="hidden sm:inline">New Collection</span>
+                            </button>
+                        )}
+                    </div>
                 </div>
             </motion.div>
 
@@ -542,201 +797,296 @@ const Dashboard = () => {
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
-                        className="overflow-hidden mb-8"
+                        className="overflow-hidden mb-12"
                     >
-                        <div className="bg-white border border-borderColor/50 rounded-[24px] p-6 shadow-sm flex flex-col gap-6">
-                            <div className="flex items-center justify-between">
-                                <h3 className="text-xs font-black uppercase tracking-widest text-textSecondary flex items-center gap-2">
-                                    <Layers className="w-3 h-3" /> Refining Search
-                                </h3>
-                                {(activeFilters.search || activeFilters.camera || activeFilters.location || activeFilters.startDate || activeFilters.endDate ||
-                                    stagedFilters.search || stagedFilters.camera || stagedFilters.location || stagedFilters.startDate || stagedFilters.endDate) && (
-                                        <button
-                                            onClick={() => {
-                                                const cleared = { search: '', camera: '', location: '', startDate: '', endDate: '', dateMode: 'range' };
-                                                setStagedFilters(cleared);
-                                                setActiveFilters(cleared);
-                                                setSearchParams({});
-                                            }}
-                                            className="text-[10px] font-bold text-accent px-3 py-1.5 rounded-full bg-accent/10 hover:bg-accent hover:text-white uppercase tracking-widest flex items-center gap-1.5 transition-all duration-200 active:scale-95 shadow-sm"
-                                        >
-                                            <RefreshCw className="w-3 h-3" /> Reset all filters
-                                        </button>
-                                    )}
+                        <div className="bg-white border border-borderColor/50 rounded-[32px] p-8 shadow-2xl shadow-black/5 flex flex-col gap-10 relative overflow-hidden">
+                            {/* Decorative Background Elements */}
+                            <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl pointer-events-none" />
+                            <div className="absolute bottom-0 left-0 w-48 h-48 bg-secondary/5 rounded-full translate-y-1/2 -translate-x-1/2 blur-3xl pointer-events-none" />
+
+                            <div className="flex items-center justify-between border-b border-borderColor/30 pb-6 relative z-10">
+                                <div>
+                                    <h3 className="text-sm font-black uppercase tracking-[0.2em] text-textMain flex items-center gap-2.5">
+                                        <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                                            <Layers className="w-4 h-4" />
+                                        </div>
+                                        Refining Search
+                                    </h3>
+                                    <p className="text-[10px] text-textSecondary font-bold mt-1.5 uppercase tracking-widest opacity-60">Fine-tune your library with AI-powered discovery</p>
+                                </div>
+                                {Object.values(stagedFilters).some(v => v !== '' && v !== 'range') && (
+                                    <button
+                                        onClick={() => {
+                                            const cleared = { search: '', camera: '', location: '', startDate: '', endDate: '', sceneType: '', mood: '', personName: '', resolution: '', mimetype: '', dateMode: 'range' };
+                                            setStagedFilters(cleared);
+                                            setActiveFilters(cleared);
+                                            setSearchParams({});
+                                        }}
+                                        className="text-[10px] font-black text-accent px-5 py-2.5 rounded-2xl bg-accent/5 hover:bg-accent hover:text-white uppercase tracking-widest flex items-center gap-2.5 transition-all duration-300 active:scale-95 shadow-sm border border-accent/10"
+                                    >
+                                        <RefreshCw className="w-3.5 h-3.5" /> Clear All Filters
+                                    </button>
+                                )}
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                                {/* Keyword Filter */}
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-bold text-textSecondary uppercase tracking-widest flex items-center gap-1.5 pl-1">
-                                        <Search className="w-3 h-3" /> Keyword
-                                    </label>
-                                    <input
-                                        type="text"
-                                        placeholder="e.g. flower, birthday..."
-                                        value={stagedFilters.search}
-                                        onChange={(e) => setStagedFilters(prev => ({ ...prev, search: e.target.value }))}
-                                        className="w-full bg-bg border border-borderColor/50 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                                    />
-                                </div>
-                                {/* Camera Filter */}
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-bold text-textSecondary uppercase tracking-widest flex items-center gap-1.5 pl-1">
-                                        <Camera className="w-3 h-3" /> Camera Model
-                                    </label>
-                                    <select
-                                        value={stagedFilters.camera}
-                                        onChange={(e) => setStagedFilters(prev => ({ ...prev, camera: e.target.value }))}
-                                        className="w-full bg-bg border border-borderColor/50 rounded-xl px-4 py-3 text-sm font-semibold focus:ring-4 focus:ring-primary/20 focus:border-primary outline-none transition-all appearance-none cursor-pointer hover:border-primary/50"
-                                    >
-                                        <option value="">Any Camera</option>
-                                        {filterOptions.cameras && filterOptions.cameras.map(c => (
-                                            <option key={c} value={c}>{c}</option>
-                                        ))}
-                                    </select>
-                                </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-10 gap-y-8 relative z-10">
+                                
+                                {/* ─── SECTION 1: KEYWORDS & AI ─── */}
+                                <div className="space-y-6">
+                                    <p className="text-[9px] font-black text-primary/60 uppercase tracking-[0.3em] flex items-center gap-2 border-l-2 border-primary/20 pl-3">Discovery</p>
+                                    <div className="space-y-4">
+                                        {/* Keyword Filter */}
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-textSecondary uppercase tracking-widest flex items-center gap-1.5 pl-1">
+                                                <Search className="w-3 h-3 text-primary" /> Keyword Search
+                                            </label>
+                                            <div className="relative group">
+                                                <input
+                                                    type="text"
+                                                    placeholder="e.g. sunset, mountains..."
+                                                    value={stagedFilters.search}
+                                                    onChange={(e) => setStagedFilters(prev => ({ ...prev, search: e.target.value }))}
+                                                    className="w-full bg-bg border border-borderColor/50 rounded-2xl px-4 py-3.5 text-sm font-semibold focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all group-hover:border-primary/30"
+                                                />
+                                            </div>
+                                        </div>
 
-                                {/* Location Filter */}
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-bold text-textSecondary uppercase tracking-widest flex items-center gap-1.5 pl-1">
-                                        <MapPin className="w-3 h-3" /> Location
-                                    </label>
-                                    <select
-                                        value={stagedFilters.location}
-                                        onChange={(e) => setStagedFilters(prev => ({ ...prev, location: e.target.value }))}
-                                        className="w-full bg-bg border border-borderColor/50 rounded-xl px-4 py-3 text-sm font-semibold focus:ring-4 focus:ring-primary/20 focus:border-primary outline-none transition-all appearance-none cursor-pointer hover:border-primary/50"
-                                    >
-                                        <option value="">Any Location</option>
-                                        {filterOptions.locations && filterOptions.locations.map(l => (
-                                            <option key={l} value={l}>{l}</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                {/* Date Mode & Primary Date Input */}
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-bold text-textSecondary uppercase tracking-widest flex items-center gap-1.5 pl-1">
-                                        <Calendar className="w-3 h-3" /> Date Mode
-                                    </label>
-                                    <div className="flex bg-bg border border-borderColor/50 rounded-xl p-1 overflow-hidden">
-                                        {['range', 'single', 'month', 'year'].map(mode => (
-                                            <button
-                                                key={mode}
-                                                onClick={() => setStagedFilters(prev => ({ ...prev, dateMode: mode }))}
-                                                className={`flex-1 py-2 text-[8px] font-black uppercase tracking-tighter rounded-lg transition-all ${stagedFilters.dateMode === mode ? 'bg-primary text-textMain shadow-sm' : 'text-textSecondary hover:bg-white'
-                                                    }`}
+                                        {/* Scene Type Filter */}
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-textSecondary uppercase tracking-widest flex items-center gap-1.5 pl-1">
+                                                <Sparkles className="w-3 h-3 text-secondary" /> Scene Context
+                                            </label>
+                                            <select
+                                                value={stagedFilters.sceneType}
+                                                onChange={(e) => setStagedFilters(prev => ({ ...prev, sceneType: e.target.value }))}
+                                                className="w-full bg-bg border border-borderColor/50 rounded-2xl px-4 py-3.5 text-sm font-semibold focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all appearance-none cursor-pointer hover:border-primary/50"
                                             >
-                                                {mode}
-                                            </button>
-                                        ))}
+                                                <option value="">All Scenes</option>
+                                                {filterOptions.sceneTypes && filterOptions.sceneTypes.map(s => (
+                                                    <option key={s} value={s}>{s}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        {/* Mood Filter */}
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-textSecondary uppercase tracking-widest flex items-center gap-1.5 pl-1">
+                                                <MessageSquare className="w-3 h-3 text-orange-500" /> Emotional Mood
+                                            </label>
+                                            <select
+                                                value={stagedFilters.mood}
+                                                onChange={(e) => setStagedFilters(prev => ({ ...prev, mood: e.target.value }))}
+                                                className="w-full bg-bg border border-borderColor/50 rounded-2xl px-4 py-3.5 text-sm font-semibold focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all appearance-none cursor-pointer hover:border-primary/50"
+                                            >
+                                                <option value="">Any Mood</option>
+                                                {filterOptions.moods && filterOptions.moods.map(m => (
+                                                    <option key={m} value={m}>{m}</option>
+                                                ))}
+                                            </select>
+                                        </div>
                                     </div>
                                 </div>
 
-                                <div className="space-y-2">
-                                    {stagedFilters.dateMode === 'range' && (
-                                        <>
+                                {/* ─── SECTION 2: PEOPLE & SPECS ─── */}
+                                <div className="space-y-6">
+                                    <p className="text-[9px] font-black text-primary/60 uppercase tracking-[0.3em] flex items-center gap-2 border-l-2 border-primary/20 pl-3">Specifications</p>
+                                    <div className="space-y-4">
+                                        {/* People Filter */}
+                                        <div className="space-y-2">
                                             <label className="text-[10px] font-bold text-textSecondary uppercase tracking-widest flex items-center gap-1.5 pl-1">
-                                                Start / End
+                                                <Users className="w-3 h-3 text-blue-500" /> Detected People
                                             </label>
-                                            <div className="flex gap-2">
-                                                <input
-                                                    type="date"
-                                                    value={stagedFilters.startDate}
-                                                    onChange={(e) => setStagedFilters(prev => ({ ...prev, startDate: e.target.value }))}
-                                                    className="w-1/2 bg-bg border border-borderColor/50 rounded-xl px-2 py-3 text-[11px] font-medium outline-none transition-all"
-                                                />
-                                                <input
-                                                    type="date"
-                                                    value={stagedFilters.endDate}
-                                                    onChange={(e) => setStagedFilters(prev => ({ ...prev, endDate: e.target.value }))}
-                                                    className="w-1/2 bg-bg border border-borderColor/50 rounded-xl px-2 py-3 text-[11px] font-medium outline-none transition-all"
-                                                />
+                                            <select
+                                                value={stagedFilters.personName}
+                                                onChange={(e) => setStagedFilters(prev => ({ ...prev, personName: e.target.value }))}
+                                                className="w-full bg-bg border border-borderColor/50 rounded-2xl px-4 py-3.5 text-sm font-semibold focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all appearance-none cursor-pointer hover:border-primary/50"
+                                            >
+                                                <option value="">Everyone</option>
+                                                {filterOptions.people && filterOptions.people.map(p => (
+                                                    <option key={p} value={p}>{p}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        {/* Camera Filter */}
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-textSecondary uppercase tracking-widest flex items-center gap-1.5 pl-1">
+                                                <Camera className="w-3 h-3 text-violet-500" /> Camera Device
+                                            </label>
+                                            <select
+                                                value={stagedFilters.camera}
+                                                onChange={(e) => setStagedFilters(prev => ({ ...prev, camera: e.target.value }))}
+                                                className="w-full bg-bg border border-borderColor/50 rounded-2xl px-4 py-3.5 text-sm font-semibold focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all appearance-none cursor-pointer hover:border-primary/50"
+                                            >
+                                                <option value="">Any Camera</option>
+                                                {filterOptions.cameras && filterOptions.cameras.map(c => (
+                                                    <option key={c} value={c}>{c}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        {/* Resolution Filter */}
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-textSecondary uppercase tracking-widest flex items-center gap-1.5 pl-1">
+                                                <Layers className="w-3 h-3 text-emerald-500" /> Resolution
+                                            </label>
+                                            <select
+                                                value={stagedFilters.resolution}
+                                                onChange={(e) => setStagedFilters(prev => ({ ...prev, resolution: e.target.value }))}
+                                                className="w-full bg-bg border border-borderColor/50 rounded-2xl px-4 py-3.5 text-sm font-semibold focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all appearance-none cursor-pointer hover:border-primary/50"
+                                            >
+                                                <option value="">Any Resolution</option>
+                                                {filterOptions.resolutions && filterOptions.resolutions.map(r => (
+                                                    <option key={r} value={r}>{r}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* ─── SECTION 3: LOCATION & TYPE ─── */}
+                                <div className="space-y-6">
+                                    <p className="text-[9px] font-black text-primary/60 uppercase tracking-[0.3em] flex items-center gap-2 border-l-2 border-primary/20 pl-3">Meta Data</p>
+                                    <div className="space-y-4">
+                                        {/* Location Filter */}
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-textSecondary uppercase tracking-widest flex items-center gap-1.5 pl-1">
+                                                <MapPin className="w-3 h-3 text-red-500" /> Geospatial Location
+                                            </label>
+                                            <select
+                                                value={stagedFilters.location}
+                                                onChange={(e) => setStagedFilters(prev => ({ ...prev, location: e.target.value }))}
+                                                className="w-full bg-bg border border-borderColor/50 rounded-2xl px-4 py-3.5 text-sm font-semibold focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all appearance-none cursor-pointer hover:border-primary/50"
+                                            >
+                                                <option value="">Anywhere</option>
+                                                {filterOptions.locations && filterOptions.locations.map(l => (
+                                                    <option key={l} value={l}>{l}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        {/* File Type Filter */}
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-textSecondary uppercase tracking-widest flex items-center gap-1.5 pl-1">
+                                                <ImageIcon className="w-3 h-3 text-amber-500" /> File Type / Format
+                                            </label>
+                                            <select
+                                                value={stagedFilters.mimetype}
+                                                onChange={(e) => setStagedFilters(prev => ({ ...prev, mimetype: e.target.value }))}
+                                                className="w-full bg-bg border border-borderColor/50 rounded-2xl px-4 py-3.5 text-sm font-semibold focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all appearance-none cursor-pointer hover:border-primary/50"
+                                            >
+                                                <option value="">All Formats</option>
+                                                {filterOptions.mimetypes && filterOptions.mimetypes.map(m => (
+                                                    <option key={m} value={m}>{m.split('/')[1]?.toUpperCase() || m}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* ─── SECTION 4: TIME MACHINE ─── */}
+                                <div className="space-y-6">
+                                    <p className="text-[9px] font-black text-primary/60 uppercase tracking-[0.3em] flex items-center gap-2 border-l-2 border-primary/20 pl-3">Time Range</p>
+                                    <div className="space-y-4">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-textSecondary uppercase tracking-widest flex items-center gap-1.5 pl-1">
+                                                <Calendar className="w-3 h-3 text-indigo-500" /> Mode
+                                            </label>
+                                            <div className="flex bg-bg border border-borderColor/50 rounded-2xl p-1 overflow-hidden">
+                                                {['range', 'month', 'year'].map(mode => (
+                                                    <button
+                                                        key={mode}
+                                                        onClick={() => setStagedFilters(prev => ({ ...prev, dateMode: mode }))}
+                                                        className={`flex-1 py-2 text-[8px] font-black uppercase tracking-tighter rounded-xl transition-all duration-300 ${stagedFilters.dateMode === mode ? 'bg-primary text-textMain shadow-md' : 'text-textSecondary hover:bg-white'
+                                                            }`}
+                                                    >
+                                                        {mode}
+                                                    </button>
+                                                ))}
                                             </div>
-                                        </>
-                                    )}
-                                    {stagedFilters.dateMode === 'single' && (
-                                        <>
-                                            <label className="text-[10px] font-bold text-textSecondary uppercase tracking-widest flex items-center gap-1.5 pl-1">
-                                                Select Date
-                                            </label>
-                                            <input
-                                                type="date"
-                                                value={stagedFilters.startDate}
-                                                onChange={(e) => {
-                                                    const val = e.target.value;
-                                                    setStagedFilters(prev => ({ ...prev, startDate: val, endDate: val }));
-                                                }}
-                                                className="w-full bg-bg border border-borderColor/50 rounded-xl px-4 py-3 text-sm font-medium outline-none transition-all"
-                                            />
-                                        </>
-                                    )}
-                                    {stagedFilters.dateMode === 'month' && (
-                                        <>
-                                            <label className="text-[10px] font-bold text-textSecondary uppercase tracking-widest flex items-center gap-1.5 pl-1">
-                                                Select Month
-                                            </label>
-                                            <div className="flex gap-2">
-                                                <select
-                                                    value={stagedFilters.startDate ? new Date(stagedFilters.startDate).getMonth() : new Date().getMonth()}
-                                                    onChange={(e) => {
-                                                        const m = parseInt(e.target.value);
-                                                        const y = stagedFilters.startDate ? new Date(stagedFilters.startDate).getFullYear() : new Date().getFullYear();
-                                                        const firstDay = new Date(y, m, 1).toISOString().split('T')[0];
-                                                        const lastDay = new Date(y, m + 1, 0).toISOString().split('T')[0];
-                                                        setStagedFilters(prev => ({ ...prev, startDate: firstDay, endDate: lastDay }));
-                                                    }}
-                                                    className="w-2/3 bg-bg border border-borderColor/50 rounded-xl px-4 py-3 text-sm font-medium outline-none transition-all appearance-none"
-                                                >
-                                                    {MONTHS.map((m, i) => <option key={m} value={i}>{m}</option>)}
-                                                </select>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            {stagedFilters.dateMode === 'range' && (
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        type="date"
+                                                        value={stagedFilters.startDate}
+                                                        onChange={(e) => setStagedFilters(prev => ({ ...prev, startDate: e.target.value }))}
+                                                        className="w-1/2 bg-bg border border-borderColor/50 rounded-2xl px-3 py-3 text-[10px] font-bold outline-none transition-all focus:border-primary"
+                                                    />
+                                                    <input
+                                                        type="date"
+                                                        value={stagedFilters.endDate}
+                                                        onChange={(e) => setStagedFilters(prev => ({ ...prev, endDate: e.target.value }))}
+                                                        className="w-1/2 bg-bg border border-borderColor/50 rounded-2xl px-3 py-3 text-[10px] font-bold outline-none transition-all focus:border-primary"
+                                                    />
+                                                </div>
+                                            )}
+                                            {stagedFilters.dateMode === 'month' && (
+                                                <div className="flex gap-2">
+                                                    <select
+                                                        value={stagedFilters.startDate ? new Date(stagedFilters.startDate).getMonth() : new Date().getMonth()}
+                                                        onChange={(e) => {
+                                                            const m = parseInt(e.target.value);
+                                                            const y = stagedFilters.startDate ? new Date(stagedFilters.startDate).getFullYear() : new Date().getFullYear();
+                                                            const firstDay = new Date(y, m, 1).toISOString().split('T')[0];
+                                                            const lastDay = new Date(y, m + 1, 0).toISOString().split('T')[0];
+                                                            setStagedFilters(prev => ({ ...prev, startDate: firstDay, endDate: lastDay }));
+                                                        }}
+                                                        className="w-2/3 bg-bg border border-borderColor/50 rounded-2xl px-3 py-3 text-xs font-bold outline-none transition-all"
+                                                    >
+                                                        {MONTHS.map((m, i) => <option key={m} value={i}>{m}</option>)}
+                                                    </select>
+                                                    <select
+                                                        value={stagedFilters.startDate ? new Date(stagedFilters.startDate).getFullYear() : YEARS[0]}
+                                                        onChange={(e) => {
+                                                            const y = parseInt(e.target.value);
+                                                            const m = stagedFilters.startDate ? new Date(stagedFilters.startDate).getMonth() : new Date().getMonth();
+                                                            const firstDay = new Date(y, m, 1).toISOString().split('T')[0];
+                                                            const lastDay = new Date(y, m + 1, 0).toISOString().split('T')[0];
+                                                            setStagedFilters(prev => ({ ...prev, startDate: firstDay, endDate: lastDay }));
+                                                        }}
+                                                        className="w-1/3 bg-bg border border-borderColor/50 rounded-2xl px-2 py-3 text-xs font-bold outline-none transition-all"
+                                                    >
+                                                        {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                                                    </select>
+                                                </div>
+                                            )}
+                                            {stagedFilters.dateMode === 'year' && (
                                                 <select
                                                     value={stagedFilters.startDate ? new Date(stagedFilters.startDate).getFullYear() : YEARS[0]}
                                                     onChange={(e) => {
-                                                        const y = parseInt(e.target.value);
-                                                        const m = stagedFilters.startDate ? new Date(stagedFilters.startDate).getMonth() : new Date().getMonth();
-                                                        const firstDay = new Date(y, m, 1).toISOString().split('T')[0];
-                                                        const lastDay = new Date(y, m + 1, 0).toISOString().split('T')[0];
-                                                        setStagedFilters(prev => ({ ...prev, startDate: firstDay, endDate: lastDay }));
+                                                        const y = e.target.value;
+                                                        setStagedFilters(prev => ({ ...prev, startDate: `${y}-01-01`, endDate: `${y}-12-31` }));
                                                     }}
-                                                    className="w-1/3 bg-bg border border-borderColor/50 rounded-xl px-2 py-3 text-sm font-medium outline-none transition-all appearance-none"
+                                                    className="w-full bg-bg border border-borderColor/50 rounded-2xl px-4 py-3 text-xs font-bold outline-none transition-all"
                                                 >
                                                     {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
                                                 </select>
-                                            </div>
-                                        </>
-                                    )}
-                                    {stagedFilters.dateMode === 'year' && (
-                                        <>
-                                            <label className="text-[10px] font-bold text-textSecondary uppercase tracking-widest flex items-center gap-1.5 pl-1">
-                                                Select Year
-                                            </label>
-                                            <select
-                                                value={stagedFilters.startDate ? new Date(stagedFilters.startDate).getFullYear() : YEARS[0]}
-                                                onChange={(e) => {
-                                                    const y = e.target.value;
-                                                    setStagedFilters(prev => ({
-                                                        ...prev,
-                                                        startDate: `${y}-01-01`,
-                                                        endDate: `${y}-12-31`
-                                                    }));
-                                                }}
-                                                className="w-full bg-bg border border-borderColor/50 rounded-xl px-4 py-3 text-sm font-medium outline-none transition-all appearance-none"
-                                            >
-                                                {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-                                            </select>
-                                        </>
-                                    )}
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* Apply Button */}
-                            <div className="flex items-end pb-1">
-                                <button
-                                    onClick={() => handleFilterApply(stagedFilters)}
-                                    className="w-full bg-primary hover:bg-secondary text-textMain font-black uppercase tracking-[0.2em] text-[10px] py-3.5 rounded-xl shadow-lg shadow-primary/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-                                >
-                                    Apply Search
-                                </button>
+                            {/* Footer Actions */}
+                            <div className="flex items-center justify-between pt-6 border-t border-borderColor/30 relative z-10">
+                                <p className="text-[10px] font-bold text-textSecondary italic opacity-60">Pro tip: Use multiple filters to pinpoint exact media.</p>
+                                <div className="flex gap-4">
+                                    <button
+                                        onClick={() => setShowFilters(false)}
+                                        className="px-6 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-textSecondary hover:bg-bg transition-all"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={() => handleFilterApply(stagedFilters)}
+                                        className="bg-primary hover:bg-secondary text-textMain px-10 py-3.5 rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] shadow-xl shadow-primary/30 transition-all active:scale-[0.98] flex items-center gap-3 hover:-translate-y-1"
+                                    >
+                                        <RefreshCw className="w-3.5 h-3.5" /> Apply Refined Search
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </motion.div>

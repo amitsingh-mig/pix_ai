@@ -10,12 +10,16 @@ const {
     updateMediaTags,
     updateMedia,
     getFilterOptions,
-    cleanupOldMedia
+    cleanupOldMedia,
+    generateMediaCaptions,
+    updateMediaCaptions,
+    getSearchSuggestions
 } = require('../controllers/mediaController');
 const { protect, authorize } = require('../middleware/authMiddleware');
 const { upload } = require('../utils/s3');
 
 router.get('/search', searchMedia);
+router.get('/suggestions', protect, getSearchSuggestions);
 router.get('/filters', protect, getFilterOptions);
 router.get('/filter-options', protect, getFilterOptions);
 router.delete('/cleanup', protect, authorize('admin'), cleanupOldMedia);
@@ -35,5 +39,10 @@ router.route('/:id/album')
 
 router.route('/:id/tags')
     .put(protect, updateMediaTags);
+
+// AI Caption generation routes
+router.route('/:id/captions')
+    .post(protect, generateMediaCaptions)
+    .put(protect, updateMediaCaptions);
 
 module.exports = router;

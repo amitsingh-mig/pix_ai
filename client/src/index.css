@@ -77,3 +77,8 @@
     @apply w-12 h-12 rounded-2xl flex items-center justify-center bg-primary shadow-md;
   }
 }
+
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}

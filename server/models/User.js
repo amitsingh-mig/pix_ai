@@ -41,7 +41,23 @@ const UserSchema = new mongoose.Schema({
         default: Date.now
     },
     resetToken: String,
-    resetTokenExpiry: Date
+    resetTokenExpiry: Date,
+    aiPreferences: {
+        preferredTone: {
+            type: String,
+            enum: ['casual', 'professional', 'funny', 'witty', 'storytelling', 'minimal'],
+            default: 'casual'
+        },
+        defaultLanguage: {
+            type: String,
+            default: 'en'
+        },
+        brandKeywords: [String],
+        autoGenerateOnUpload: {
+            type: Boolean,
+            default: false
+        }
+    }
 });
 
 // Encrypt password using bcrypt

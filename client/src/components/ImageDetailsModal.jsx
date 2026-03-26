@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Lottie from "lottie-react";
 import api from '../services/api';
+import AICaptionPanel from './AICaptionPanel';
 import {
     X, Calendar, HardDrive, FileType, User, Tag, Folder,
     PlusCircle, MapPin, Watch, Maximize, Download, Trash2,
@@ -670,6 +671,20 @@ const ImageDetailsModal = ({ image, user, onClose, onUpdate, onDelete, onFilter,
                                             </div>
                                         ))}
                                     </div>
+                                </motion.div>
+                            )}
+
+                            {/* SECTION 7 — AI Caption Studio */}
+                            {image.type === 'image' && (
+                                <motion.div variants={itemVariants}>
+                                    <AICaptionPanel
+                                        image={image}
+                                        onCaptionsUpdate={(captionData) => {
+                                            if (onUpdate) {
+                                                onUpdate({ ...image, aiCaptions: captionData });
+                                            }
+                                        }}
+                                    />
                                 </motion.div>
                             )}
 

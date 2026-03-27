@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import Joyride, { STATUS } from 'react-joyride';
+import Joyride from 'react-joyride';
+import { STATUS } from 'react-joyride';
 
 const OnboardingTour = ({ onTourEnd }) => {
     const [run, setRun] = useState(false);

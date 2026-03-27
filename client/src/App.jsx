@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AlbumProvider } from './context/AlbumContext';
@@ -46,7 +46,6 @@ const AdminRoute = ({ children }) => {
 const GuestRoute = ({ children }) => {
   const { user, loading } = useAuth();
   if (loading) return <Spinner />;
-  // Logged-in users don't need the guest gallery — send them to dashboard
   return !user ? (children || <Outlet />) : <Navigate to="/" replace />;
 };
 

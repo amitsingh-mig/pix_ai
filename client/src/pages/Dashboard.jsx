@@ -583,22 +583,22 @@ const Dashboard = () => {
                 {/* Sub-header actions / Interface */}
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 flex-1 lg:flex-initial">
                     {/* Persistent Search Bar (Normal AI Search) */}
-                    <div className="flex-1 min-w-0 sm:min-w-[300px] lg:min-w-[450px] relative">
+                    <div className="flex-1 min-w-0 sm:min-w-[400px] lg:min-w-[550px] relative">
                         <form onSubmit={handleSearch} className="relative group">
-                            <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none">
-                                <Search className={`w-4 h-4 text-textSecondary group-focus-within:text-primary transition-colors duration-300 ${isSuggesting ? 'animate-spin' : ''}`} />
-                                <Sparkles className="w-3 h-3 text-secondary animate-pulse opacity-60" />
+                            <div className="absolute left-6 top-1/2 -translate-y-1/2 flex items-center gap-3 pointer-events-none">
+                                <Search className={`w-5 h-5 text-gray-400 group-focus-within:text-primary transition-all duration-300 ${isSuggesting ? 'animate-spin' : ''}`} />
+                                <Sparkles className="w-3.5 h-3.5 text-secondary animate-pulse" />
                             </div>
                             <input
                                 type="text"
-                                placeholder="Search keyword, camera, or location..."
+                                placeholder="Search photos, text, places, people..."
                                 value={searchQuery}
                                 onFocus={() => setShowSuggestions(true)}
                                 onChange={(e) => {
                                     setSearchQuery(e.target.value);
                                     setShowSuggestions(true);
                                 }}
-                                className="w-full bg-white border border-borderColor/50 rounded-2xl pl-14 pr-10 py-3.5 text-[11px] font-black uppercase tracking-widest focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all group-hover:border-primary/30 shadow-sm"
+                                className="w-full bg-white border border-borderColor/40 rounded-[2rem] pl-16 pr-10 py-5 text-[13px] font-bold uppercase tracking-widest focus:ring-8 focus:ring-primary/5 focus:border-primary outline-none transition-all group-hover:border-primary/40 shadow-[0_10px_30px_rgba(0,0,0,0.03)]"
                             />
                             {searchQuery && (
                                 <button
@@ -762,31 +762,58 @@ const Dashboard = () => {
                         </AnimatePresence>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
                         <button
                             onClick={() => {
                                 setShowFilters(!showFilters);
                                 if (!showFilters) setStagedFilters(activeFilters);
                             }}
-                            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2.5 px-6 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all shadow-sm border ${showFilters ? 'bg-primary border-primary text-textMain' : 'bg-white border-borderColor/50 text-textSecondary hover:border-primary/30'}`}
+                            className={`flex items-center gap-3 px-8 py-4 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] transition-all border ${
+                                showFilters 
+                                    ? 'bg-primary text-textMain border-primary shadow-xl shadow-primary/20' 
+                                    : 'bg-white text-textSecondary border-borderColor/50 hover:border-primary/40 hover:text-textMain'
+                            }`}
                         >
-                            <Filter className={`w-4 h-4 ${showFilters ? 'animate-pulse' : ''}`} />
-                            <span className="hidden sm:inline">Filters</span>
-                            {Object.values(activeFilters).some(v => v !== '' && v !== 'range') && (
-                                <span className="w-2 h-2 rounded-full bg-accent animate-bounce" />
-                            )}
+                            <Command className={`w-4 h-4 ${showFilters ? 'rotate-90' : ''} transition-transform duration-500`} />
+                            {showFilters ? 'Hide Filters' : 'Explore Filters'}
                         </button>
-
-                        {typeFilter === 'albums' && !currentAlbum && (
-                            <button
-                                onClick={handleCreateAlbum}
-                                className="flex items-center gap-2.5 px-6 py-3.5 rounded-2xl text-[11px] font-black uppercase tracking-[0.15em] text-textMain bg-primary hover:bg-secondary transition-all shadow-xl shadow-primary/20 group"
-                            >
-                                <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform duration-300" />
-                                <span className="hidden sm:inline">New Collection</span>
-                            </button>
-                        )}
                     </div>
+                </div>
+
+                {/* Filter Chips Layer */}
+                <div className="flex flex-wrap items-center gap-2 mt-6">
+                    {Object.entries(activeFilters).map(([key, value]) => {
+                        if (!value || key === 'dateMode') return null;
+                        return (
+                            <motion.div
+                                initial={{ opacity: 0, x: -10 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                key={key}
+                                className="flex items-center gap-2.5 px-4 py-2 bg-white border border-borderColor/40 rounded-xl shadow-sm hover:border-primary/40 transition-all group"
+                            >
+                                <span className="text-[9px] font-black text-textSecondary uppercase tracking-widest group-hover:text-primary transition-colors">{key}:</span>
+                                <span className="text-[10px] font-bold text-textMain truncate max-w-[120px] uppercase font-serif tracking-tight">{value}</span>
+                                <button 
+                                    onClick={() => handleFilterApply({ [key]: '' })}
+                                    className="ml-1 p-0.5 hover:bg-red-50 rounded-full transition-colors text-textSecondary hover:text-danger"
+                                >
+                                    <X className="w-3 h-3" />
+                                </button>
+                            </motion.div>
+                        );
+                    })}
+
+                    {Object.values(activeFilters).some(v => v !== '' && v !== 'range') && (
+                        <button
+                            onClick={() => {
+                                const cleared = { search: '', camera: '', location: '', startDate: '', endDate: '', sceneType: '', mood: '', personName: '', resolution: '', mimetype: '', dateMode: 'range' };
+                                handleFilterApply(cleared);
+                            }}
+                            className="text-[9px] font-black text-danger uppercase tracking-[0.2em] hover:bg-danger/5 px-4 py-2 rounded-xl transition-all"
+                        >
+                            Reset System
+                        </button>
+                    )}
                 </div>
             </motion.div>
 
@@ -1135,7 +1162,7 @@ const Dashboard = () => {
                     </p>
                 </div>
             ) : (
-                <div id="media-gallery" className="media-gallery grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                <div id="media-gallery" className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
                     {typeFilter === 'albums' && !currentAlbum ? (
                         albums.map((album) => (
                             <AlbumCard
@@ -1154,6 +1181,7 @@ const Dashboard = () => {
                                 user={user}
                                 onDelete={handleDelete}
                                 onClick={(media) => setSelectedImage(media)}
+                                onFilter={handleFilterApply}
                             />
                         ))
                     )}

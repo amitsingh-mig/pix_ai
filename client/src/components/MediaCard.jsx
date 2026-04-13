@@ -1,5 +1,6 @@
 import React from 'react';
-import { ImageIcon, Video, Trash2, MapPin, Sparkles } from 'lucide-react';
+import { ImageIcon, Video, Trash2, MapPin, Sparkles, Hash, Camera, Play } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 const MediaCard = ({ item, user, onDelete, onClick, onFilter }) => {
     const handleFilterClick = (e, filterType, value) => {
@@ -7,115 +8,124 @@ const MediaCard = ({ item, user, onDelete, onClick, onFilter }) => {
         if (onFilter) onFilter({ [filterType]: value });
     };
 
-    // Show max 5 tags in card; more visible in detail modal
-    const visibleTags = item.tags?.slice(0, 5) || [];
     const hasAiTags = item.metadata?.aiTagSource?.includes('rekognition') || item.metadata?.aiTagCount > 0;
+    const locationName = item.location?.name || item.metadata?.location?.placeName || item.metadata?.location?.city;
 
     return (
-        <div className="media-card group relative cursor-pointer" onClick={() => onClick(item)}>
-            {/* Thumbnail */}
-            <div className="h-48 overflow-hidden bg-bg relative">
+        <motion.div 
+            layout
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            whileHover={{ y: -5 }}
+            className="media-card" 
+            onClick={() => onClick(item)}
+        >
+            {/* Visual Container */}
+            <div className="aspect-[4/5] relative overflow-hidden">
                 {item.type === 'image' ? (
                     <img
                         src={item.thumbnailUrl || item.url}
                         alt={item.title}
                         loading="lazy"
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                     />
                 ) : (
-                    <video src={item.url} preload="none" className="w-full h-full object-cover" />
+                    <div className="w-full h-full relative">
+                        <video src={item.url} preload="none" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/10 transition-colors">
+                            <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30">
+                                <Play className="w-5 h-5 text-white fill-white" />
+                            </div>
+                        </div>
+                    </div>
                 )}
 
-                {/* Gradient overlay for badges readability */}
-                <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/10 pointer-events-none" />
-
-                {/* Floating Badges Container — top-left */}
-                <div className="absolute top-2.5 left-2.5 flex flex-col items-start gap-1.5 z-20 max-w-[calc(100%-44px)]">
-                    {/* Album badge */}
-                    {item.album && (
-                        <div className="bg-black/50 backdrop-blur-md text-white/90 text-[10px] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider border border-white/10 shadow-sm cursor-default whitespace-nowrap overflow-hidden text-ellipsis max-w-full">
-                            {item.album}
+                {/* Overlays */}
+                <div className="media-card-overlay">
+                    <div className="space-y-2">
+                        {/* Title & Meta */}
+                        <div>
+                            <h3 className="text-white text-sm font-black uppercase tracking-wider truncate mb-1">
+                                {item.title}
+                            </h3>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[9px] text-white/60 font-medium uppercase tracking-widest">
+                                    by {item.uploadedBy?.username}
+                                </span>
+                            </div>
                         </div>
-                    )}
 
-                    {/* Location badge */}
-                    {(item.location?.name || item.metadata?.location) && (
-                        <div
-                            className="bg-white/85 backdrop-blur-md text-slate-900 border border-black/5 py-0.5 px-2 rounded-md shadow-sm flex items-center gap-1 cursor-pointer transition-all hover:bg-white active:scale-95 group/loc max-w-full"
-                            onClick={(e) => handleFilterClick(e, 'location', item.location?.name || item.metadata?.location?.placeName || item.metadata?.location?.city)}
-                        >
-                            <MapPin className="w-3 h-3 text-red-500 flex-shrink-0 group-hover/loc:scale-110 transition-transform" />
-                            <span className="text-[10px] font-semibold truncate">
-                                {item.location?.name || item.metadata?.location?.placeName || item.metadata?.location?.city || 'Location'}
-                            </span>
+                        {/* Quick Info Bar */}
+                        <div className="flex flex-wrap gap-1.5 pt-2">
+                            {locationName && (
+                                <div className="px-2 py-0.5 rounded-full bg-white/10 backdrop-blur-md border border-white/10 flex items-center gap-1">
+                                    <MapPin className="w-2.5 h-2.5 text-primary" />
+                                    <span className="text-[8px] text-white font-black uppercase tracking-tighter truncate max-w-[80px]">
+                                        {locationName}
+                                    </span>
+                                </div>
+                            )}
+                            {item.camera?.model && (
+                                <div className="px-2 py-0.5 rounded-full bg-white/10 backdrop-blur-md border border-white/10 flex items-center gap-1">
+                                    <Camera className="w-2.5 h-2.5 text-secondary" />
+                                    <span className="text-[8px] text-white font-black uppercase tracking-tighter truncate max-w-[80px]">
+                                        {item.camera.model}
+                                    </span>
+                                </div>
+                            )}
                         </div>
-                    )}
-                </div>
 
-                {/* Bottom-left: type badge + AI badge */}
-                <div className="absolute bottom-2 left-2 flex items-center gap-1.5 z-20">
-                    {/* Media type badge */}
-                    <div className="bg-white/90 text-textMain text-xs px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm font-medium">
-                        {item.type === 'image'
-                            ? <><ImageIcon className="w-3 h-3 text-accent" /> Image</>
-                            : <><Video className="w-3 h-3 text-accent" /> Video</>}
+                        {/* Tags Preview */}
+                        <div className="flex flex-wrap gap-1 pt-1 overflow-hidden h-5">
+                            {item.tags?.slice(0, 3).map((tag, i) => (
+                                <span key={i} className="text-[8px] text-primary font-black uppercase tracking-widest">
+                                    #{tag}
+                                </span>
+                            ))}
+                        </div>
                     </div>
+                </div>
 
-                    {/* AI-tagged badge — shown only if Rekognition or AI processed this item */}
+                {/* Badges (Constant Visibility) */}
+                <div className="absolute top-4 left-4 flex gap-2 z-10">
                     {hasAiTags && (
-                        <div
-                            title={`AI-tagged: ${item.metadata?.aiTagCount || 0} auto-generated tags`}
-                            className="bg-violet-500/90 text-white text-[9px] px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm font-bold uppercase tracking-wide cursor-default"
-                        >
-                            <Sparkles className="w-2.5 h-2.5" />
-                            AI
+                        <div className="w-6 h-6 rounded-lg bg-white/90 backdrop-blur-md flex items-center justify-center shadow-lg border border-white">
+                            <Sparkles className="w-3 h-3 text-secondary animate-pulse" />
+                        </div>
+                    )}
+                    {item.type === 'video' && (
+                        <div className="w-6 h-6 rounded-lg bg-accent text-white flex items-center justify-center shadow-lg">
+                            <Video className="w-3 h-3" />
                         </div>
                     )}
                 </div>
 
-                {/* Delete button */}
+                {/* Actions */}
                 {user && (user.role === 'admin' || user.id === item.uploadedBy?._id) && (
                     <button
                         onClick={(e) => { e.stopPropagation(); onDelete(e, item._id); }}
-                        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 btn-danger transition-all duration-200 shadow-sm z-20"
-                        title="Delete"
+                        className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white opacity-0 group-hover:opacity-100 flex items-center justify-center text-danger hover:bg-danger hover:text-white transition-all shadow-xl z-20 scale-75 group-hover:scale-100"
                     >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-4 h-4" />
                     </button>
                 )}
             </div>
-
-            {/* Card Body */}
-            <div className="p-4">
-                <h3 className="text-sm font-semibold text-textMain truncate mb-0.5">{item.title}</h3>
-                <p className="text-xs text-textSecondary mb-3">by {item.uploadedBy?.username}</p>
-
-                {/* Tags */}
-                {visibleTags.length > 0 ? (
-                    <div className="flex flex-wrap gap-1">
-                        {visibleTags.map((tag, i) => (
-                            <span
-                                key={i}
-                                onClick={(e) => handleFilterClick(e, 'search', tag)}
-                                className="text-[10px] px-2.5 py-1 rounded-full bg-primary/10 text-textMain font-black uppercase tracking-wider hover:bg-primary transition-all cursor-pointer select-none"
-                                title={`Search for "${tag}"`}
-                            >
-                                #{tag}
-                            </span>
-                        ))}
-                        {/* Overflow indicator */}
-                        {(item.tags?.length || 0) > 5 && (
-                            <span className="text-[10px] px-2 py-1 rounded-full bg-borderColor/40 text-textSecondary font-bold cursor-default">
-                                +{item.tags.length - 5}
-                            </span>
-                        )}
+            
+            {/* Simple Bottom Info (Visible on Mobile/Default) */}
+            <div className="p-4 md:group-hover:opacity-0 transition-opacity">
+                <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-[11px] font-black uppercase tracking-widest text-textMain truncate">
+                        {item.title}
+                    </h3>
+                    <div className="flex items-center gap-1 opacity-50">
+                        <ImageIcon className="w-3 h-3" />
+                        <span className="text-[9px] font-bold">RAW</span>
                     </div>
-                ) : (
-                    <p className="text-[10px] text-textSecondary italic">No tags yet</p>
-                )}
+                </div>
             </div>
-        </div>
+        </motion.div>
     );
 };
 
 export default MediaCard;
+

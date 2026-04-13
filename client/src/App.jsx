@@ -23,89 +23,72 @@ import MainLayout from './components/MainLayout';
 const shouldShowLoader = () => !sessionStorage.getItem('loaderShown');
 
 const Spinner = () => (
-  <div className="min-h-screen flex items-center justify-center bg-bg">
-    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
-  </div>
+    <div className="min-h-screen flex items-center justify-center bg-bg">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
+    </div>
 );
 
-// Require login
 const PrivateRoute = ({ children }) => {
-  const { user, loading } = useAuth();
-  if (loading) return <Spinner />;
-  return user ? (children || <Outlet />) : <Navigate to="/login" replace />;
+    const { user, loading } = useAuth();
+    if (loading) return <Spinner />;
+    return user ? (children || <Outlet />) : <Navigate to="/login" replace />;
 };
 
-// Require admin role
 const AdminRoute = ({ children }) => {
-  const { user, loading } = useAuth();
-  if (loading) return <Spinner />;
-  return user && user.role === 'admin' ? (children || <Outlet />) : <Navigate to="/" replace />;
-};
-
-// If already logged in, redirect away from /gallery to the proper dashboard
-const GuestRoute = ({ children }) => {
-  const { user, loading } = useAuth();
-  if (loading) return <Spinner />;
-  return !user ? (children || <Outlet />) : <Navigate to="/" replace />;
+    const { user, loading } = useAuth();
+    if (loading) return <Spinner />;
+    return user?.role === 'admin' ? (children || <Outlet />) : <Navigate to="/" replace />;
 };
 
 const App = () => {
-  const [loaderDone, setLoaderDone] = useState(!shouldShowLoader());
+    const [loaderDone, setLoaderDone] = useState(!shouldShowLoader());
 
-  const handleLoaderComplete = () => {
-    sessionStorage.setItem('loaderShown', 'true');
-    setLoaderDone(true);
-  };
+    const handleLoaderComplete = () => {
+        sessionStorage.setItem('loaderShown', 'true');
+        setLoaderDone(true);
+    };
 
-  return (
-    <AuthProvider>
-      <AlbumProvider>
-        {/* 3D Loader — renders on top; fades out via framer-motion */}
-        {!loaderDone && <Loader3D onComplete={handleLoaderComplete} />}
+    return (
+        <AuthProvider>
+            <AlbumProvider>
+                {!loaderDone && <Loader3D onComplete={handleLoaderComplete} />}
 
-        {/* Global Layout logic */}
-        <div
-          className="min-h-screen bg-bg font-sans text-textMain transition-opacity duration-500"
-          style={{
-            opacity: loaderDone ? 1 : 0,
-            pointerEvents: loaderDone ? 'auto' : 'none',
-          }}
-        >
-          <Routes>
-            {/* ── Public / Auth routes ─────────────────────────────────── */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/reset-password/:token" element={<ResetPassword />} />
+                <div style={{
+                    opacity: loaderDone ? 1 : 0,
+                    transition: 'opacity 0.8s ease'
+                }}>
+                    <Routes>
+                        <Route path="/login" element={<Login />} />
+                        <Route path="/forgot-password" element={<ForgotPassword />} />
+                        <Route path="/reset-password/:token" element={<ResetPassword />} />
+                        <Route path="/gallery" element={<GuestGallery />} />
 
-            {/* ── Guest-only public gallery (no login required) ─────────── */}
-            <Route path="/gallery" element={<GuestGallery />} />
+                        <Route element={<PrivateRoute />}>
+                            <Route element={<MainLayout><Navbar /></MainLayout>}>
+                                <Route path="/" element={<Dashboard />} />
+                                <Route path="/profile" element={<Profile />} />
+                                <Route path="/upload" element={<Upload />} />
+                            </Route>
 
-            {/* ── Authenticated routes wrapped in MainLayout ────────────── */}
-            <Route element={<PrivateRoute><MainLayout /></PrivateRoute>}>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/upload" element={<Upload />} />
-              <Route path="/profile" element={<Profile />} />
+                            {/* Admin Routes */}
+                            <Route element={<AdminRoute />}>
+                                <Route element={<MainLayout><Navbar /></MainLayout>}>
+                                    <Route path="/admin" element={<AdminDashboard />} />
+                                    <Route path="/admin/add-user" element={<AdminAddUser />} />
+                                </Route>
+                            </Route>
+                        </Route>
 
-              {/* Admin-only routes also inside MainLayout */}
-              <Route element={<AdminRoute />}>
-                <Route path="/admin" element={<AdminDashboard />} />
-                <Route path="/admin/add-user" element={<AdminAddUser />} />
-              </Route>
-            </Route>
-
-            {/* ── Error pages & Catch-all ───────────────────────────────── */}
-            <Route path="/400" element={<Error400 />} />
-            <Route path="/500" element={<Error500 />} />
-            <Route path="/404" element={<Error404 />} />
-            <Route path="/register" element={<Navigate to="/login" replace />} />
-            <Route path="*" element={<Error404 />} />
-          </Routes>
-
-          <OnboardingTour />
-        </div>
-      </AlbumProvider>
-    </AuthProvider>
-  );
+                        {/* Error pages */}
+                        <Route path="/400" element={<Error400 />} />
+                        <Route path="/500" element={<Error500 />} />
+                        <Route path="*" element={<Error404 />} />
+                    </Routes>
+                    <OnboardingTour />
+                </div>
+            </AlbumProvider>
+        </AuthProvider>
+    );
 };
 
 export default App;

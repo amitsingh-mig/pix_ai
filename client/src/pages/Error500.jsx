@@ -1,83 +1,61 @@
-import React, { useRef, Suspense } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { Sphere, MeshDistortMaterial, Text, Float, Environment, ContactShadows } from '@react-three/drei';
+import React from 'react';
 import { Link } from 'react-router-dom';
-
-const MeltdownSphere = () => {
-    const meshRef = useRef();
-
-    useFrame((state) => {
-        const t = state.clock.getElapsedTime();
-        if (meshRef.current) {
-            meshRef.current.distort = 0.4 + Math.sin(t) * 0.2;
-            meshRef.current.speed = 2 + Math.sin(t / 2) * 2;
-        }
-    });
-
-    return (
-        <Sphere args={[1, 100, 100]} scale={1.5}>
-            <MeshDistortMaterial
-                ref={meshRef}
-                color="#ef4444"
-                roughness={0.1}
-                metalness={1}
-                distort={0.5}
-                speed={2}
-            />
-        </Sphere>
-    );
-};
+import { motion } from 'framer-motion';
+import { ShieldAlert } from 'lucide-react';
 
 const Error500 = () => {
     return (
-        <div className="relative w-full h-[calc(100vh-64px)] bg-[#1a0000] overflow-hidden">
-            <Canvas camera={{ position: [0, 0, 5], fov: 75 }}>
-                <color attach="background" args={['#1a0000']} />
-                <ambientLight intensity={0.2} />
-                <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} intensity={2} color="#ff4d4d" />
-                <pointLight position={[-10, -10, -10]} intensity={1} color="#ff0000" />
+        <div className="relative w-full h-screen bg-[#1a0000] overflow-hidden flex items-center justify-center">
+            {/* Heat Gradient Background */}
+            <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-red-600/10 via-transparent to-transparent" />
 
-                <Suspense fallback={null}>
-                    <Float speed={2} rotationIntensity={1} floatIntensity={1}>
-                        <MeltdownSphere />
-                    </Float>
+            <div className="relative z-10 text-center px-6 max-w-2xl">
+                <motion.div
+                    initial={{ y: 50, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ duration: 0.8, ease: 'easeOut' }}
+                >
+                    <div className="flex justify-center mb-10">
+                        <motion.div 
+                            animate={{ scale: [1, 1.2, 1], opacity: [0.6, 1, 0.6] }}
+                            transition={{ duration: 0.8, repeat: Infinity }}
+                            className="w-32 h-32 bg-red-600 rounded-full blur-3xl absolute -z-10"
+                        />
+                        <div className="p-8 bg-red-600/10 rounded-full border-2 border-red-600/20">
+                            <ShieldAlert className="w-24 h-24 text-red-600" />
+                        </div>
+                    </div>
 
-                    <ContactShadows
-                        position={[0, -2.5, 0]}
-                        opacity={0.4}
-                        scale={20}
-                        blur={2}
-                        far={4.5}
-                    />
+                    <h1 className="text-4xl md:text-7xl font-black text-white mb-2 uppercase tracking-tight">
+                        CORE MELTDOWN
+                    </h1>
+                    <p className="text-red-500 font-mono text-2xl mb-8 font-bold animate-pulse tracking-widest uppercase">
+                        CRITICAL_SERVER_ERROR_500
+                    </p>
+                    
+                    <p className="text-gray-400 text-lg mb-12 max-w-lg mx-auto leading-relaxed">
+                        Our systems are currently experiencing a thermal event. 
+                        The infrastructure team is working in high-heat conditions to stabilize the mission.
+                    </p>
 
-                    <Environment preset="night" />
-                </Suspense>
-            </Canvas>
-
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 translate-y-24 text-center z-10 w-full px-4">
-                <h1 className="text-4xl md:text-7xl font-black text-white mb-2 uppercase tracking-tight">
-                    CRITICAL FAILURE
-                </h1>
-                <p className="text-red-500 font-mono text-2xl mb-6 font-bold animate-pulse">ERROR 500</p>
-                <p className="text-gray-400 text-lg mb-8 max-w-md mx-auto">
-                    Our servers are experiencing a thermal event. We are working to stabilize the system core.
-                </p>
-                <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                    <button
-                        onClick={() => window.location.reload()}
-                        className="px-8 py-3 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition-all duration-300 shadow-xl shadow-red-900/50"
-                    >
-                        Emergency Restart
-                    </button>
-                    <Link
-                        to="/"
-                        className="px-8 py-3 bg-white/10 text-white border border-white/20 rounded-lg font-bold hover:bg-white/20 transition-all duration-300 backdrop-blur-sm"
-                    >
-                        Evacuate to Home
-                    </Link>
-                </div>
+                    <div className="flex flex-col sm:flex-row gap-5 justify-center">
+                        <button
+                            onClick={() => window.location.reload()}
+                            className="px-10 py-4 bg-red-600 text-white rounded-2xl font-black hover:bg-red-700 transition-all duration-300 shadow-2xl shadow-red-900/40 uppercase tracking-widest hover:-translate-y-1 active:translate-y-0"
+                        >
+                            Emergency Restart
+                        </button>
+                        <Link
+                            to="/"
+                            className="px-10 py-4 bg-white/5 text-white border border-white/10 rounded-2xl font-black hover:bg-white/10 transition-all duration-300 backdrop-blur-md uppercase tracking-widest hover:-translate-y-1 active:translate-y-0"
+                        >
+                            Evacuate to Home
+                        </Link>
+                    </div>
+                </motion.div>
             </div>
 
+            {/* Heat Haze Effect (SVG) */}
             <svg style={{ position: 'absolute', width: 0, height: 0 }}>
                 <filter id="heat">
                     <feTurbulence type="fractalNoise" baseFrequency="0.01 0.05" numOctaves="2" seed="1">
@@ -86,8 +64,6 @@ const Error500 = () => {
                     <feDisplacementMap in="SourceGraphic" scale="10" />
                 </filter>
             </svg>
-
-            <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-red-600/20 to-transparent" />
         </div>
     );
 };

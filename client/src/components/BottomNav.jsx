@@ -18,51 +18,48 @@ const BottomNav = () => {
 
     const navByRole = {
         admin: [
-            { to: '/', icon: <LayoutDashboard className="w-6 h-6" />, label: 'Home', exact: true },
-            { to: '/?search=true', icon: <Search className="w-6 h-6" />, label: 'Search' },
-            { to: '/upload', icon: <Upload className="w-6 h-6" />, label: 'Upload' },
-            { to: '/?tab=albums', icon: <Library className="w-6 h-6" />, label: 'Albums' },
-            { to: '/profile', icon: <User className="w-6 h-6" />, label: 'Profile' },
+            { to: '/', icon: <LayoutDashboard className="w-5 h-5" />, label: 'Home', exact: true },
+            { to: '/?search=true', icon: <Search className="w-5 h-5" />, label: 'Search' },
+            { to: '/upload', icon: <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center -mt-8 shadow-xl border-4 border-white"><Upload className="w-5 h-5 text-textMain" /></div>, label: 'Upload' },
+            { to: '/?tab=albums', icon: <Library className="w-5 h-5" />, label: 'Library' },
+            { to: '/profile', icon: <User className="w-5 h-5" />, label: 'Me' },
         ],
         user: [
-            { to: '/', icon: <LayoutDashboard className="w-6 h-6" />, label: 'Home', exact: true },
-            { to: '/?search=true', icon: <Search className="w-6 h-6" />, label: 'Search' },
-            { to: '/upload', icon: <Upload className="w-6 h-6" />, label: 'Upload' },
-            { to: '/?tab=albums', icon: <Library className="w-6 h-6" />, label: 'Albums' },
-            { to: '/profile', icon: <User className="w-6 h-6" />, label: 'Profile' },
+            { to: '/', icon: <LayoutDashboard className="w-5 h-5" />, label: 'Home', exact: true },
+            { to: '/?search=true', icon: <Search className="w-5 h-5" />, label: 'Search' },
+            { to: '/upload', icon: <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center -mt-8 shadow-xl border-4 border-white"><Upload className="w-5 h-5 text-textMain" /></div>, label: 'Upload' },
+            { to: '/?tab=albums', icon: <Library className="w-5 h-5" />, label: 'Library' },
+            { to: '/profile', icon: <User className="w-5 h-5" />, label: 'Me' },
         ],
         guest: [
-            { to: '/gallery', icon: <Eye className="w-6 h-6" />, label: 'Gallery' },
-            { to: '/login', icon: <LogIn className="w-6 h-6" />, label: 'Sign In' },
+            { to: '/gallery', icon: <Eye className="w-5 h-5" />, label: 'Gallery' },
+            { to: '/login', icon: <LogIn className="w-5 h-5" />, label: 'Sign In' },
         ],
     };
 
     const navItems = navByRole[role] || navByRole.guest;
 
     return (
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-borderColor/50 shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.1)] z-[100] px-6 py-2">
-            <div className="flex justify-between items-center max-w-md mx-auto">
+        <nav className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[90vw] max-w-md bg-white/80 backdrop-blur-2xl border border-white/20 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] z-[100] px-4 py-3">
+            <div className="flex justify-between items-center h-12">
                 {navItems.map((item) => (
                     <NavLink
                         key={item.to + item.label}
                         to={item.to}
                         end={item.exact}
                         className={({ isActive }) => `
-                            flex flex-col items-center gap-1 transition-all duration-300 relative px-2
-                            ${isActive ? 'text-primary' : 'text-textSecondary'}
+                            flex flex-col items-center gap-1 transition-all duration-300 relative px-3
+                            ${isActive ? 'text-primary scale-110' : 'text-textSecondary'}
                         `}
                     >
                         {({ isActive }) => (
                             <>
-                                <div className={`p-1.5 rounded-xl transition-all duration-300 ${isActive ? 'bg-primary/10' : ''}`}>
+                                <div className={`transition-all duration-300 ${isActive ? 'animate-bounce' : ''}`}>
                                     {item.icon}
                                 </div>
-                                <span className={`text-[9px] font-bold uppercase tracking-widest ${isActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1'} transition-all`}>
+                                <span className={`text-[8px] font-black uppercase tracking-widest mt-1 ${isActive ? 'opacity-100' : 'opacity-40'}`}>
                                     {item.label}
                                 </span>
-                                {isActive && (
-                                    <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-8 h-1 bg-primary rounded-full" />
-                                )}
                             </>
                         )}
                     </NavLink>

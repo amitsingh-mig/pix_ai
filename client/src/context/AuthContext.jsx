@@ -27,7 +27,7 @@ export const AuthProvider = ({ children }) => {
         checkLoggedIn();
     }, []);
 
-    const login = async (email, password) => {
+    const login = React.useCallback(async (email, password) => {
         try {
             setError(null);
             const res = await api.post('/auth/login', { email, password });
@@ -38,9 +38,9 @@ export const AuthProvider = ({ children }) => {
             setError(err.response?.data?.error || 'Login failed');
             throw err;
         }
-    };
+    }, []);
 
-    const register = async (username, email, password) => {
+    const register = React.useCallback(async (username, email, password) => {
         try {
             setError(null);
             const res = await api.post('/auth/register', { username, email, password });
@@ -51,14 +51,14 @@ export const AuthProvider = ({ children }) => {
             setError(err.response?.data?.error || 'Registration failed');
             throw err;
         }
-    };
+    }, []);
 
-    const logout = () => {
+    const logout = React.useCallback(() => {
         localStorage.removeItem('token');
         setUser(null);
-    };
+    }, []);
 
-    const value = {
+    const value = React.useMemo(() => ({
         user,
         setUser,
         loading,
@@ -66,11 +66,11 @@ export const AuthProvider = ({ children }) => {
         login,
         register,
         logout
-    };
+    }), [user, loading, error, login, register]);
 
     return (
         <AuthContext.Provider value={value}>
-            {!loading && children}
+            {children}
         </AuthContext.Provider>
     );
 };

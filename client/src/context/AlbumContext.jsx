@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
 import api from '../services/api';
 import { useAuth } from './AuthContext';
 
@@ -38,19 +38,19 @@ export const AlbumProvider = ({ children }) => {
         }
     }, [user, fetchAlbums]);
 
-    const addAlbum = (album) => {
+    const addAlbum = useCallback((album) => {
         setAlbums(prev => [album, ...prev]);
-    };
+    }, []);
 
-    const updateAlbumState = (updatedAlbum) => {
+    const updateAlbumState = useCallback((updatedAlbum) => {
         setAlbums(prev => prev.map(a => a._id === updatedAlbum._id ? updatedAlbum : a));
-    };
+    }, []);
 
-    const removeAlbumState = (albumId) => {
+    const removeAlbumState = useCallback((albumId) => {
         setAlbums(prev => prev.filter(a => a._id !== albumId));
-    };
+    }, []);
 
-    const deleteAlbum = async (albumId) => {
+    const deleteAlbum = useCallback(async (albumId) => {
         try {
             await api.delete(`/albums/${albumId}`);
             removeAlbumState(albumId);
@@ -59,42 +59,42 @@ export const AlbumProvider = ({ children }) => {
             console.error('Failed to delete album', err);
             throw err;
         }
-    };
+    }, [removeAlbumState]);
 
     const [navigationPath, setNavigationPath] = useState([]);
 
     const addToPath = useCallback((album) => {
         if (!album) return;
         setNavigationPath(prev => {
-            // If already at the end, don't add
             if (prev.length > 0 && prev[prev.length - 1]._id === album._id) return prev;
-            // Limit to last 5
             const newPath = [...prev, album];
             if (newPath.length > 5) return newPath.slice(1);
             return newPath;
         });
     }, []);
 
-    const clearPath = () => setNavigationPath([]);
+    const clearPath = useCallback(() => setNavigationPath([]), []);
 
-    const jumpToPath = (index) => {
+    const jumpToPath = useCallback((index) => {
         setNavigationPath(prev => prev.slice(0, index + 1));
-    };
+    }, []);
+
+    const contextValue = useMemo(() => ({
+        albums,
+        loading,
+        refreshAlbums: fetchAlbums,
+        addAlbum,
+        updateAlbumState,
+        removeAlbumState,
+        deleteAlbum,
+        navigationPath,
+        addToPath,
+        clearPath,
+        jumpToPath
+    }), [albums, loading, fetchAlbums, addAlbum, updateAlbumState, removeAlbumState, deleteAlbum, navigationPath, addToPath, clearPath, jumpToPath]);
 
     return (
-        <AlbumContext.Provider value={{
-            albums,
-            loading,
-            refreshAlbums: fetchAlbums,
-            addAlbum,
-            updateAlbumState,
-            removeAlbumState,
-            deleteAlbum,
-            navigationPath,
-            addToPath,
-            clearPath,
-            jumpToPath
-        }}>
+        <AlbumContext.Provider value={contextValue}>
             {children}
         </AlbumContext.Provider>
     );

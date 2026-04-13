@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import imageInfoAnimation from "../assets/lottie/image-info.json";
 
 const ImageDetailsModal = ({ image, user, onClose, onUpdate, onDelete, onFilter, albums = [], filterOptions = { cameras: [], locations: [] } }) => {
+    const [activeTab, setActiveTab] = useState('info');
     const [isUpdating, setIsUpdating] = useState(false);
     const [tagInput, setTagInput] = useState('');
     const [editingField, setEditingField] = useState(null); // 'camera', 'location', 'title'
@@ -307,427 +308,271 @@ const ImageDetailsModal = ({ image, user, onClose, onUpdate, onDelete, onFilter,
 
                     {/* Right Side: Details Panel (30%) */}
                     <div className="w-full md:w-[30%] h-full bg-bg flex flex-col border-l border-borderColor">
+                        {/* Tab Headers */}
+                        <div className="flex bg-white border-b border-borderColor px-2 py-2">
+                            {[
+                                { id: 'info', icon: Info, label: 'Info' },
+                                { id: 'ai', icon: Sparkles, label: 'AI' },
+                                { id: 'ocr', icon: Edit3, label: 'Text' },
+                                { id: 'map', icon: MapPin, label: 'Map' }
+                            ].map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`flex-1 flex flex-col items-center gap-1.5 py-3 rounded-xl transition-all ${
+                                        activeTab === tab.id 
+                                            ? 'bg-primary/10 text-primary' 
+                                            : 'text-textSecondary hover:bg-gray-50'
+                                    }`}
+                                >
+                                    <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? 'animate-pulse' : ''}`} />
+                                    <span className="text-[9px] font-black uppercase tracking-widest">{tab.label}</span>
+                                </button>
+                            ))}
+                        </div>
+
                         <motion.div
-                            variants={containerVariants}
-                            initial="hidden"
-                            animate="visible"
+                            key={activeTab}
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
                             className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-hide"
                         >
-
-                            {/* SECTION 1 — Header */}
-                            <motion.div variants={itemVariants} className="flex items-start gap-4 mb-2">
-                                <div className="p-3 bg-white rounded-xl shadow-sm border border-borderColor">
-                                    {image.type === 'image' ? <FileType className="w-6 h-6 text-primary" /> : <Watch className="w-6 h-6 text-primary" />}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <h2 className="text-[20px] font-semibold text-textMain leading-tight truncate">{image.title}</h2>
-                                    <div className="flex items-center gap-1.5 mt-1 text-textSecondary uppercase tracking-widest text-[10px] font-bold">
-                                        <Folder className="w-3 h-3 text-secondary" />
-                                        <span>{image.album?.name || 'Ungrouped'}</span>
-                                    </div>
-                                </div>
-                            </motion.div>
-
-                            {/* SECTION 2 — Basic Info Card */}
-                            <motion.div
-                                variants={itemVariants}
-                                className="bg-white rounded-xl p-5 shadow-[0_2px_10px_rgba(0,0,0,0.02)] border border-borderColor flex flex-col gap-4"
-                            >
-                                <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500">
-                                        <Calendar className="w-4 h-4" />
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] uppercase font-bold text-textSecondary tracking-widest leading-none mb-1">Upload Date</p>
-                                        <p className="text-sm font-semibold text-textMain">{formatDate(image.createdAt)}</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center text-green-500">
-                                        <HardDrive className="w-4 h-4" />
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] uppercase font-bold text-textSecondary tracking-widest leading-none mb-1">File Size</p>
-                                        <p className="text-sm font-semibold text-textMain">{formatSize(image.metadata?.size)}</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center text-purple-500">
-                                        <FileType className="w-4 h-4" />
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] uppercase font-bold text-textSecondary tracking-widest leading-none mb-1">Format</p>
-                                        <p className="text-sm font-semibold text-textMain uppercase">{image.metadata?.mimetype?.split('/')[1] || image.type}</p>
-                                    </div>
-                                </div>
-                                {image.type === 'video' && (
-                                    <div className="flex items-center gap-3 pt-4 border-t border-gray-50">
-                                        <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center text-orange-500">
-                                            <Watch className="w-4 h-4" />
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] uppercase font-bold text-textSecondary tracking-widest leading-none mb-1">Duration</p>
-                                            <p className="text-sm font-semibold text-textMain">{formatDuration(image.metadata?.duration)}</p>
-                                        </div>
-                                    </div>
-                                )}
-                            </motion.div>
-
-                            {/* SECTION 3 — Location Card */}
-                            {image.metadata?.location && (
-                                <motion.div
-                                    variants={itemVariants}
-                                    className="bg-white rounded-xl p-5 shadow-[0_2px_10px_rgba(0,0,0,0.02)] border border-borderColor hover:border-secondary/20 transition-colors"
-                                >
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center text-accent">
-                                                <MapPin className="w-4 h-4" />
+                            {/* TAB 1: INFO */}
+                            {activeTab === 'info' && (
+                                <>
+                                    <div className="space-y-6">
+                                        <div className="flex items-start gap-4">
+                                            <div className="p-3 bg-white rounded-2xl shadow-sm border border-borderColor">
+                                                <FileType className="w-6 h-6 text-primary" />
                                             </div>
-                                            <div className="flex-1">
-                                                <MetadataListEditor
-                                                    field="location"
-                                                    icon={MapPin}
-                                                    label="Location"
-                                                    value={image.location?.name || image.metadata?.location?.placeName || image.metadata?.location?.city}
-                                                    options={filterOptions.locations}
-                                                />
+                                            <div className="flex-1 min-w-0">
+                                                <h2 className="text-[18px] font-black text-textMain leading-tight truncate uppercase tracking-tight">{image.title}</h2>
+                                                <div className="flex items-center gap-1.5 mt-1 text-textSecondary uppercase tracking-widest text-[9px] font-bold">
+                                                    <Folder className="w-3 h-3 text-secondary" />
+                                                    <span>{image.album?.name || 'Ungrouped'}</span>
+                                                </div>
                                             </div>
                                         </div>
-                                        {(image.location?.latitude || image.metadata?.location?.lat) && (image.location?.longitude || image.metadata?.location?.lng) && (
-                                            <a
-                                                href={`https://www.google.com/maps/search/?api=1&query=${image.location?.latitude || image.metadata.location.lat},${image.location?.longitude || image.metadata.location.lng}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center text-textSecondary hover:text-primary transition-colors"
-                                                title="Open in Google Maps"
-                                            >
-                                                <Share2 className="w-3.5 h-3.5" />
-                                            </a>
-                                        )}
-                                    </div>
-                                    <div className="relative h-40 bg-gray-50 rounded-lg overflow-hidden border border-borderColor mb-3">
-                                        {(image.location?.latitude || image.metadata?.location?.lat) && (image.location?.longitude || image.metadata?.location?.lng) ? (
-                                            <iframe
-                                                title="Location Map"
-                                                width="100%"
-                                                height="100%"
-                                                frameBorder="0"
-                                                scrolling="no"
-                                                marginHeight="0"
-                                                marginWidth="0"
-                                                src={`https://www.openstreetmap.org/export/embed.html?bbox=${(image.location?.longitude || image.metadata.location.lng) - 0.01}%2C${(image.location?.latitude || image.metadata.location.lat) - 0.01}%2C${(image.location?.longitude || image.metadata.location.lng) + 0.01}%2C${(image.location?.latitude || image.metadata.location.lat) + 0.01}&layer=mapnik&marker=${image.location?.latitude || image.metadata.location.lat}%2C${image.location?.longitude || image.metadata.location.lng}`}
-                                                className="grayscale-[0.2] contrast-[1.1]"
-                                            ></iframe>
-                                        ) : (
-                                            <div className="w-full h-full flex flex-col items-center justify-center">
-                                                <MapPin className="w-6 h-6 text-gray-200" />
-                                                <p className="text-[10px] font-bold text-gray-400 tracking-widest uppercase mt-2">Map Preview Unavailable</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <p className="text-xs text-textSecondary leading-relaxed italic">
-                                        {image.location?.address || image.metadata?.location?.address || [image.metadata?.location?.city, image.metadata?.location?.country].filter(Boolean).join(', ')}
-                                    </p>
-                                </motion.div>
-                            )}
 
-                            {/* SECTION 4 — Camera Info Card (Enhanced) */}
-                            {image.type === 'image' && (
-                                <motion.div
-                                    variants={itemVariants}
-                                    className="bg-white rounded-xl overflow-hidden shadow-[0_2px_10px_rgba(0,0,0,0.02)] border border-borderColor transition-all duration-300"
-                                >
-                                    {/* Handle Header with Toggle */}
-                                    <div 
-                                        onClick={() => setShowExif(!showExif)}
-                                        className="p-5 flex items-center justify-between cursor-pointer hover:bg-gray-50/50 transition-colors"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                                                <Camera className="w-4 h-4" />
+                                        <div className="bg-white rounded-3xl p-6 shadow-sm border border-borderColor/40 space-y-5">
+                                            <div className="flex items-center gap-4">
+                                                <Calendar className="w-4 h-4 text-primary" />
+                                                <div>
+                                                    <p className="text-[9px] uppercase font-black text-textSecondary tracking-[0.2em] mb-0.5">Captured</p>
+                                                    <p className="text-sm font-bold text-textMain">{formatDate(image.createdAt)}</p>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="text-[10px] uppercase font-black text-textSecondary tracking-widest leading-none mb-1">Camera Details</p>
-                                                <p className="text-xs font-bold text-textMain">
-                                                    {image.camera?.model || image.metadata?.exif?.model || image.metadata?.exif?.camera || image.device || 'Unknown Device'}
-                                                </p>
+                                            <div className="flex items-center gap-4">
+                                                <HardDrive className="w-4 h-4 text-secondary" />
+                                                <div>
+                                                    <p className="text-[9px] uppercase font-black text-textSecondary tracking-[0.2em] mb-0.5">Disk Space</p>
+                                                    <p className="text-sm font-bold text-textMain">{formatSize(image.metadata?.size)}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-4">
+                                                <Scaling className="w-4 h-4 text-accent" />
+                                                <div>
+                                                    <p className="text-[9px] uppercase font-black text-textSecondary tracking-[0.2em] mb-0.5">Resolution</p>
+                                                    <p className="text-sm font-bold text-textMain">{image.metadata?.resolution || 'Original'}</p>
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            {image.metadata?.exif?.isAIEstimated && (
-                                                <span className="px-2 py-0.5 bg-violet-50 text-violet-500 text-[8px] font-black rounded-full uppercase tracking-tighter border border-violet-100">AI Est.</span>
-                                            )}
-                                            <button className={`p-1.5 rounded-lg transition-transform duration-300 ${showExif ? 'rotate-180 bg-primary/10 text-primary' : 'bg-gray-50 text-textSecondary'}`}>
-                                                <Move className="w-3.5 h-3.5 rotate-90" />
-                                            </button>
-                                        </div>
-                                    </div>
 
-                                    {/* Expandable Content */}
-                                    <AnimatePresence>
-                                        {showExif && (
-                                            <motion.div
-                                                initial={{ height: 0, opacity: 0 }}
-                                                animate={{ height: 'auto', opacity: 1 }}
-                                                exit={{ height: 0, opacity: 0 }}
-                                                transition={{ duration: 0.3 }}
-                                                className="border-t border-borderColor"
-                                            >
-                                                {!image.metadata?.exif && (
-                                                    <div className="p-8 text-center bg-gray-50/50">
-                                                        <Info className="w-6 h-6 text-gray-200 mx-auto mb-2" />
-                                                        <p className="text-[10px] font-bold text-gray-400 tracking-widest uppercase italic">Metadata not available in this image</p>
-                                                    </div>
-                                                )}
-                                                {image.metadata?.exif && (
-                                                <div className="p-5 space-y-5">
-                                                    {/* AI Photography Insight */}
-                                                    {(image.metadata?.photographyInsight || image.metadata?.exif?.photographyInsight) && (
-                                                        <div className="bg-primary/5 rounded-xl p-4 border border-primary/20 relative group/insight">
-                                                            <div className="flex items-start gap-3">
-                                                                <Sparkles className="w-4 h-4 text-primary mt-0.5" />
-                                                                <div>
-                                                                    <p className="text-[9px] font-black uppercase text-textSecondary tracking-widest mb-1 group-hover/insight:text-primary transition-colors">AI Photography Insight</p>
-                                                                    <p className="text-xs font-semibold text-textMain leading-relaxed italic">
-                                                                        "{image.metadata?.photographyInsight || image.metadata?.exif?.photographyInsight}"
-                                                                    </p>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    )}
-
-                                                    {/* Metadata Grid */}
-                                                    <div className="grid grid-cols-2 gap-4">
-                                                        <div className="flex flex-col gap-1">
-                                                            <p className="text-[9px] font-bold text-textSecondary uppercase tracking-wider">Lens</p>
-                                                            <div className="flex items-center gap-2">
-                                                                <Scaling className="w-3.5 h-3.5 text-gray-300" />
-                                                                <p className="text-xs font-bold text-textMain truncate">{image.metadata?.exif?.lens || 'Not Available'}</p>
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex flex-col gap-1">
-                                                            <p className="text-[9px] font-bold text-textSecondary uppercase tracking-wider">Aperture</p>
-                                                            <div className="flex items-center gap-2">
-                                                                <Aperture className="w-3.5 h-3.5 text-gray-300" />
-                                                                <p className="text-xs font-bold text-textMain">{image.metadata?.exif?.aperture || 'Not Available'}</p>
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex flex-col gap-1">
-                                                            <p className="text-[9px] font-bold text-textSecondary uppercase tracking-wider">ISO</p>
-                                                            <div className="flex items-center gap-2">
-                                                                <Info className="w-3.5 h-3.5 text-gray-300" />
-                                                                <p className="text-xs font-bold text-textMain">{image.metadata?.exif?.iso || 'Not Available'}</p>
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex flex-col gap-1">
-                                                            <p className="text-[9px] font-bold text-textSecondary uppercase tracking-wider">Shutter</p>
-                                                            <div className="flex items-center gap-2">
-                                                                <Watch className="w-3.5 h-3.5 text-gray-300" />
-                                                                <p className="text-xs font-bold text-textMain">{image.metadata?.exif?.shutterSpeed || 'Not Available'}</p>
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex flex-col gap-1">
-                                                            <p className="text-[9px] font-bold text-textSecondary uppercase tracking-wider">Focal Length</p>
-                                                            <div className="flex items-center gap-2">
-                                                                <Eye className="w-3.5 h-3.5 text-gray-300" />
-                                                                <p className="text-xs font-bold text-textMain">{image.metadata?.exif?.focalLength || 'Not Available'}</p>
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex flex-col gap-1">
-                                                            <p className="text-[9px] font-bold text-textSecondary uppercase tracking-wider">Dimensions</p>
-                                                            <div className="flex items-center gap-2">
-                                                                <Maximize className="w-3.5 h-3.5 text-gray-300" />
-                                                                <p className="text-xs font-bold text-textMain">{image.metadata?.resolution || 'Not Available'}</p>
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex flex-col gap-1 col-span-2 pt-2 border-t border-gray-50">
-                                                            <p className="text-[9px] font-bold text-textSecondary uppercase tracking-wider">Captured On</p>
-                                                            <div className="flex items-center gap-2">
-                                                                <Calendar className="w-3.5 h-3.5 text-gray-300" />
-                                                                <p className="text-xs font-bold text-textMain">
-                                                                    {image.metadata?.exif?.captureDate ? formatDate(image.metadata.exif.captureDate) : 'Not Available'}
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Copy Button */}
-                                                    <button 
-                                                        onClick={(e) => { e.stopPropagation(); handleCopyMetadata(); }}
-                                                        className="w-full flex items-center justify-center gap-2 py-2.5 bg-gray-50 hover:bg-gray-100 text-textSecondary hover:text-primary rounded-xl text-[10px] font-black uppercase tracking-widest border border-borderColor transition-all active:scale-[0.98]"
+                                        {/* Tags Section */}
+                                        <div className="space-y-4">
+                                            <p className="text-[10px] uppercase font-black text-textSecondary tracking-[0.2em] pl-2">Social Tags</p>
+                                            <div className="flex flex-wrap gap-2">
+                                                {image.tags?.map((tag, i) => (
+                                                    <span 
+                                                        key={i} 
+                                                        onClick={() => onFilter && onFilter({ search: tag })}
+                                                        className="group relative px-4 py-2 bg-white rounded-full text-[11px] font-bold text-textMain border border-borderColor hover:border-primary/50 transition-all cursor-pointer"
                                                     >
-                                                        <Copy className="w-3 h-3" /> Copy Metadata
+                                                        #{tag}
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); handleRemoveTag(tag); }}
+                                                            className="absolute -top-1 -right-1 w-4 h-4 bg-danger text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-[10px]"
+                                                        >
+                                                            ×
+                                                        </button>
+                                                    </span>
+                                                ))}
+                                                <div className="flex items-center gap-2">
+                                                    <input 
+                                                        type="text" 
+                                                        value={tagInput}
+                                                        onChange={(e) => setTagInput(e.target.value)}
+                                                        onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
+                                                        placeholder="Add tag..."
+                                                        className="w-24 px-3 py-2 bg-transparent border-b border-borderColor text-[11px] font-bold outline-none focus:border-primary"
+                                                    />
+                                                    <button 
+                                                        onClick={handleAddTag}
+                                                        className="w-8 h-8 flex items-center justify-center rounded-full bg-primary text-textMain shadow-lg hover:scale-110 active:scale-90 transition-all"
+                                                    >
+                                                        <PlusCircle className="w-4 h-4" />
                                                     </button>
                                                 </div>
-                                                )}
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
-                                </motion.div>
-                            )}
-
-                            {/* SECTION 5 — Uploaded By Card */}
-                            <motion.div
-                                variants={itemVariants}
-                                className="bg-white rounded-xl p-4 shadow-[0_2px_10px_rgba(0,0,0,0.02)] border border-borderColor flex items-center justify-between group cursor-default"
-                            >
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-textMain font-bold text-sm shadow-md transition-transform group-hover:scale-105">
-                                        <User className="w-5 h-5" />
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] uppercase font-bold text-textSecondary tracking-widest leading-none mb-1">Uploader</p>
-                                        <p className="text-sm font-bold text-textMain">{image.uploadedBy?.username || 'Owner'}</p>
-                                    </div>
-                                </div>
-                                <div className="px-2 py-1 bg-gray-50 rounded text-[9px] font-black text-textSecondary uppercase tracking-widest">Verified User</div>
-                            </motion.div>
-
-                            {/* SECTION 6 — Tags Card */}
-                            <motion.div
-                                variants={itemVariants}
-                                className="bg-white rounded-xl p-5 shadow-[0_2px_10px_rgba(0,0,0,0.02)] border border-borderColor"
-                            >
-                                <div className="flex items-center justify-between mb-4">
-                                    <div className="flex items-center gap-2">
-                                        <Tag className="w-4 h-4 text-primary" />
-                                        <p className="text-[10px] uppercase font-bold text-textSecondary tracking-widest">Tags</p>
-                                        {/* AI badge if Rekognition was used */}
-                                        {image.metadata?.aiTagSource?.includes('rekognition') && (
-                                            <span
-                                                title={`${image.metadata?.aiTagCount || 0} tags auto-generated by AWS Rekognition + OpenAI`}
-                                                className="flex items-center gap-1 px-2 py-0.5 bg-violet-100 text-violet-600 text-[9px] font-black rounded-full uppercase tracking-wider border border-violet-200"
-                                            >
-                                                <Sparkles className="w-2.5 h-2.5" />
-                                                AI • {image.metadata?.aiTagCount || 0} tags
-                                            </span>
-                                        )}
-                                    </div>
-                                    <button
-                                        onClick={() => {
-                                            localStorage.removeItem('highlightAI');
-                                        }}
-                                        className="text-[9px] font-black uppercase text-secondary hover:text-primary flex items-center gap-1 transition-colors tracking-widest"
-                                    >
-                                        <PlusCircle className="w-3 h-3" /> AI Suggest
-                                    </button>
-                                </div>
-
-                                <div className="flex flex-wrap gap-1.5 mb-4">
-                                    {image.tags?.length > 0 ? image.tags.map((tag, i) => (
-                                        <span key={i} className="px-3 py-1.5 rounded-full bg-gray-50 text-textMain text-[11px] font-bold border border-borderColor hover:border-primary/30 hover:bg-primary/5 transition-all cursor-pointer group/tag relative"
-                                            onClick={() => onFilter && onFilter({ search: tag })}
-                                            title="Click to search this tag"
-                                        >
-                                            #{tag}
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); handleRemoveTag(tag); }}
-                                                className="w-2.5 h-2.5 absolute -top-1 -right-1 bg-danger text-white rounded-full opacity-0 group-hover/tag:opacity-100 transition-opacity flex items-center justify-center hover:scale-110"
-                                            >
-                                                <X className="w-2 h-2" />
-                                            </button>
-                                        </span>
-                                    )) : (
-                                        <p className="text-xs text-textSecondary italic">No tags associated.</p>
-                                    )}
-                                </div>
-
-                                <div className="relative group">
-                                    <input
-                                        type="text"
-                                        value={tagInput}
-                                        onChange={(e) => setTagInput(e.target.value)}
-                                        onKeyDown={(e) => e.key === 'Enter' && handleAddTag(e)}
-                                        placeholder="Add custom tag..."
-                                        disabled={isUpdating}
-                                        className="w-full bg-gray-50 border border-borderColor rounded-lg px-3 py-2 text-xs focus:bg-white focus:border-primary outline-none transition-all pr-12 font-medium disabled:opacity-50"
-                                    />
-                                    <button
-                                        onClick={handleAddTag}
-                                        disabled={isUpdating || !tagInput.trim()}
-                                        className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-md bg-white border border-borderColor text-primary opacity-0 group-focus-within:opacity-100 transition-opacity shadow-sm hover:bg-primary hover:text-white disabled:opacity-0"
-                                    >
-                                        <PlusCircle className="w-3.5 h-3.5" />
-                                    </button>
-                                </div>
-                            </motion.div>
-
-                            {/* Recognized Faces Card */}
-                            {image.metadata?.people?.length > 0 && (
-                                <motion.div
-                                    variants={itemVariants}
-                                    className="bg-white rounded-xl p-5 shadow-[0_2px_10px_rgba(0,0,0,0.02)] border border-borderColor"
-                                >
-                                    <div className="flex items-center gap-2 mb-4">
-                                        <User className="w-4 h-4 text-accent" />
-                                        <p className="text-[10px] uppercase font-bold text-textSecondary tracking-widest">Recognized Faces</p>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        {image.metadata.people.map((person, i) => (
-                                            <div key={i} className="px-3 py-2.5 bg-red-50/30 rounded-lg border border-red-50 flex items-center justify-between group hover:border-accent/30 transition-colors">
-                                                <span className="text-[11px] font-bold text-accent truncate">{person.name}</span>
-                                                <span className="text-[9px] font-black text-accent/50">{Math.round(person.confidence)}%</span>
                                             </div>
-                                        ))}
+                                        </div>
                                     </div>
-                                </motion.div>
+                                </>
                             )}
 
-                            {/* SECTION 7 — AI Caption Studio */}
-                            {image.type === 'image' && (
-                                <motion.div variants={itemVariants}>
+                            {/* TAB 2: AI INSIGHTS */}
+                            {activeTab === 'ai' && (
+                                <div className="space-y-6">
+                                    <div className="p-6 bg-gradient-to-br from-violet-600 to-indigo-700 rounded-[2.5rem] shadow-xl text-white relative overflow-hidden group">
+                                        <Sparkles className="w-12 h-12 absolute -top-2 -right-2 opacity-20 group-hover:scale-125 transition-transform duration-700" />
+                                        <p className="text-[9px] font-black uppercase tracking-[0.3em] mb-4 opacity-70">AI Photography Analysis</p>
+                                        <p className="text-sm font-medium leading-relaxed italic">
+                                            "{image.metadata?.photographyInsight || image.metadata?.exif?.photographyInsight || "Analysis in progress..."}"
+                                        </p>
+                                    </div>
+
+                                    {/* AI Metadata Overview */}
+                                    <div className="grid grid-cols-1 gap-4">
+                                        <div className="p-5 bg-white rounded-[2rem] border border-borderColor/40 shadow-sm">
+                                            <div className="flex items-center gap-3 mb-4">
+                                                <Camera className="w-4 h-4 text-primary" />
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-textSecondary">Equipment Data</span>
+                                            </div>
+                                            <div className="space-y-3">
+                                                <div className="flex justify-between">
+                                                    <span className="text-xs text-textSecondary">Model</span>
+                                                    <span className="text-xs font-black uppercase">{image.camera?.model || 'Generic Camera'}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span className="text-xs text-textSecondary">Aperture</span>
+                                                    <span className="text-xs font-black uppercase">{image.metadata?.exif?.aperture || 'f/unknown'}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span className="text-xs text-textSecondary">Exposure</span>
+                                                    <span className="text-xs font-black uppercase">{image.metadata?.exif?.shutterSpeed || 'unknown'}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* AI Face Recognition */}
+                                        {image.metadata?.people?.length > 0 && (
+                                            <div className="p-5 bg-white rounded-[2rem] border border-borderColor/40 shadow-sm">
+                                                <div className="flex items-center gap-3 mb-4">
+                                                    <Users className="w-4 h-4 text-accent" />
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-textSecondary">Identified People</span>
+                                                </div>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {image.metadata.people.map((p, i) => (
+                                                        <span key={i} className="px-3 py-1 bg-accent/5 text-accent text-[10px] font-black rounded-full uppercase border border-accent/10">
+                                                            {p.name}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* AI Captions */}
                                     <AICaptionPanel
                                         image={image}
-                                        onCaptionsUpdate={(captionData) => {
-                                            if (onUpdate) {
-                                                onUpdate({ ...image, aiCaptions: captionData });
-                                            }
-                                        }}
+                                        onCaptionsUpdate={(captionData) => onUpdate && onUpdate({ ...image, aiCaptions: captionData })}
                                     />
-                                </motion.div>
+                                </div>
                             )}
 
-                        </motion.div>
+                            {/* TAB 3: OCR TEXT */}
+                            {activeTab === 'ocr' && (
+                                <div className="space-y-6">
+                                    <div className="p-6 bg-white rounded-[2.5rem] border border-borderColor/50 shadow-sm">
+                                        <div className="flex items-center gap-3 mb-6">
+                                            <Command className="w-5 h-5 text-primary" />
+                                            <div>
+                                                <h3 className="text-sm font-black uppercase tracking-widest">Text Discovery</h3>
+                                                <p className="text-[9px] text-textSecondary font-bold uppercase mt-0.5">OCR Engine Activated</p>
+                                            </div>
+                                        </div>
 
-                        {/* Bottom Action Section */}
-                        <div className="p-6 border-t border-borderColor bg-white space-y-4">
-                            <div className="grid grid-cols-2 gap-3">
-                                <button
-                                    onClick={handleDownload}
-                                    className="flex items-center justify-center gap-2 py-3.5 bg-primary hover:bg-secondary text-textMain font-bold text-xs rounded-xl shadow-[0_4px_12px_rgba(255,212,29,0.3)] transition-all active:scale-[0.98] hover:-translate-y-0.5"
-                                >
-                                    <Download className="w-4 h-4" /> Download
-                                </button>
-                                {user && (user.role === 'admin' || user.id === image.uploadedBy?._id || user.id === image.uploadedBy) && (
-                                    <button
-                                        onClick={handleDelete}
-                                        className="flex items-center justify-center gap-2 py-3.5 bg-white hover:bg-red-50 text-red-500 font-bold text-xs rounded-xl border border-borderColor hover:border-red-200 transition-all active:scale-[0.98]"
-                                    >
-                                        <Trash2 className="w-4 h-4" /> Delete
-                                    </button>
-                                )}
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                                <div className="relative flex-1">
-                                    <Folder className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-textSecondary" />
-                                    <select
-                                        value={image.album?._id || image.album || ''}
-                                        onChange={handleAlbumChange}
-                                        disabled={isUpdating}
-                                        className="w-full py-3.5 pl-10 pr-4 bg-gray-50 border border-borderColor rounded-xl text-xs font-bold text-textMain focus:border-primary transition-all outline-none appearance-none cursor-pointer hover:bg-white"
-                                    >
-                                        <option value="">No Album (Ungrouped)</option>
-                                        {albums.map(album => (
-                                            <option key={album._id} value={album._id}>{album.name}</option>
-                                        ))}
-                                    </select>
-                                    <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none">
-                                        <Move className="w-3.5 h-3.5 text-textSecondary" />
+                                        {image.text && image.text.length > 0 ? (
+                                            <div className="space-y-4">
+                                                {image.text.map((line, i) => (
+                                                    <div key={i} className="group relative">
+                                                        <div className="absolute -left-3 top-0 bottom-0 w-0.5 bg-primary/20 group-hover:bg-primary transition-colors" />
+                                                        <p className="text-sm font-medium text-textMain lowercase tracking-tight pl-2">
+                                                            {line}
+                                                        </p>
+                                                    </div>
+                                                ))}
+                                                <button 
+                                                    onClick={() => navigator.clipboard.writeText(image.text.join('\n'))}
+                                                    className="w-full mt-4 flex items-center justify-center gap-2 py-3 bg-gray-50 hover:bg-gray-100 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                                >
+                                                    <Copy className="w-3.5 h-3.5" /> Copy All Text
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="py-20 text-center opacity-30">
+                                                <Edit3 className="w-12 h-12 mx-auto mb-4" />
+                                                <p className="text-xs font-bold uppercase tracking-widest">No text detected</p>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
-                            </div>
+                            )}
+
+                            {/* TAB 4: MAP */}
+                            {activeTab === 'map' && (
+                                <div className="space-y-6">
+                                    <div className="bg-white rounded-[2.5rem] overflow-hidden border border-borderColor/50 shadow-sm">
+                                        <div className="h-64 relative bg-gray-100">
+                                            {(image.location?.latitude || image.metadata?.location?.lat) && (image.location?.longitude || image.metadata?.location?.lng) ? (
+                                                <iframe
+                                                    title="Location Map"
+                                                    width="100%"
+                                                    height="100%"
+                                                    frameBorder="0"
+                                                    scrolling="no"
+                                                    marginHeight="0"
+                                                    marginWidth="0"
+                                                    src={`https://maps.google.com/maps?q=${image.location?.latitude || image.metadata.location.lat},${image.location?.longitude || image.metadata.location.lng}&hl=en&z=14&output=embed`}
+                                                    className="grayscale-[0.1] contrast-[1.1]"
+                                                ></iframe>
+                                            ) : (
+                                                <div className="w-full h-full flex flex-col items-center justify-center">
+                                                    <MapPin className="w-12 h-12 text-gray-200" />
+                                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-4">No GPS Data</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="p-6">
+                                            <div className="flex items-start gap-4 mb-4">
+                                                <div className="w-10 h-10 rounded-2xl bg-accent/10 flex items-center justify-center text-accent">
+                                                    <MapPin className="w-5 h-5" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[9px] font-black uppercase text-textSecondary tracking-[0.2em] mb-1">Location Details</p>
+                                                    <h3 className="text-sm font-bold text-textMain uppercase tracking-tight leading-tight">
+                                                        {image.location?.name || image.metadata?.location?.placeName || 'Unknown Location'}
+                                                    </h3>
+                                                    <p className="text-[11px] text-textSecondary mt-1 font-medium italic">
+                                                        {image.location?.address || image.metadata?.location?.address || 'Geolocation missing address details.'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <button 
+                                                onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${image.location?.latitude || image.metadata.location.lat},${image.location?.longitude || image.metadata.location.lng}`)}
+                                                className="w-full py-3.5 bg-accent text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-lg shadow-accent/20 hover:scale-95 transition-all"
+                                            >
+                                                Open in Google Maps
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </motion.div>
+
+                        {/* Bottom Actions */}
+                        <div className="p-6 bg-white border-t border-borderColor grid grid-cols-2 gap-3">
+                            <button onClick={handleDownload} className="btn-primary">Download</button>
+                            <button onClick={handleDelete} className="px-6 py-3.5 rounded-2xl text-xs font-black uppercase tracking-widest text-danger hover:bg-red-50 border border-borderColor transition-all">Delete</button>
                         </div>
                     </div>
                 </motion.div>

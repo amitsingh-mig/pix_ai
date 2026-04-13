@@ -26,6 +26,10 @@ const MediaSchema = new mongoose.Schema({
         type: [String],
         default: []
     },
+    text: {
+        type: [String],
+        default: []
+    },
     uploadedBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
@@ -122,6 +126,7 @@ MediaSchema.index({ tags: 1 });
 MediaSchema.index({ album: 1 });
 MediaSchema.index({
     tags: "text",
+    text: "text",
     album: "text",
     title: "text",
     description: "text",

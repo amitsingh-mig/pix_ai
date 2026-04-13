@@ -2,7 +2,8 @@ const mongoose = require('mongoose');
 const Media = require('../models/Media');
 const Album = require('../models/Album');
 const { isAWSConfigured, deleteFile, getS3FileSize } = require('../utils/s3');
-const { generateTags } = require('../utils/ai');
+const { generateTags, extractText } = require('../utils/aiTagger');
+const { parseSearchQuery } = require('../utils/aiSearch');
 const { generateThumbnail, generateLowResS3 } = require('../utils/thumbnailService');
 const { extractExif, detectPeople, reverseGeocode, extractVideoMetadata } = require('../utils/metadataExtractor');
 const path = require('path');
@@ -65,6 +66,7 @@ exports.uploadMedia = async (req, res, next) => {
             let locationData = null;
             let peopleData = [];
             let aiTags = [];
+            let detectedText = [];
             let thumbnailUrl = null;
 
             if (isImage) {
@@ -79,10 +81,11 @@ exports.uploadMedia = async (req, res, next) => {
                     console.error('[UPLOAD] Low-res generation failed:', err.message);
                 }
 
-                // Run AI tag generation + face detection + EXIF extraction in parallel for speed
-                const [tagsResult, peopleResult, exifResult] = await Promise.allSettled([
-                    generateTags(mediaKey, { enrichWithOpenAI: true }),
+                // Run AI tag generation + face detection + OCR + EXIF extraction in parallel for speed
+                const [tagsResult, peopleResult, textResult, exifResult] = await Promise.allSettled([
+                    generateTags(mediaKey),
                     detectPeople({ S3Object: { Bucket: process.env.AWS_BUCKET_NAME, Name: mediaKey } }),
+                    extractText(mediaKey),
                     extractExif({ bucket: process.env.AWS_BUCKET_NAME, key: mediaKey })
                 ]);
 
@@ -103,6 +106,16 @@ exports.uploadMedia = async (req, res, next) => {
                     }
                 } else {
                     console.error('[UPLOAD] Face detection failed:', peopleResult.reason?.message);
+                }
+
+                // Collect OCR Text
+                if (textResult.status === 'fulfilled') {
+                    detectedText = textResult.value || [];
+                    if (detectedText.length > 0) {
+                        console.log(`[UPLOAD] OCR: Detected ${detectedText.length} lines of text`);
+                    }
+                } else {
+                    console.error('[UPLOAD] OCR failed:', textResult.reason?.message);
                 }
 
                 // Collect EXIF data
@@ -214,6 +227,7 @@ exports.uploadMedia = async (req, res, next) => {
                 highResUrl: mediaUrl,
                 type: isImage ? 'image' : 'video',
                 tags: finalTags,
+                text: detectedText,
                 uploadedBy: req.user.id,
                 album: albumName,
                 albumId: albumId,
@@ -357,6 +371,7 @@ exports.getMedia = async (req, res, next) => {
             filter.$or = [
                 { title: searchRegex },
                 { tags: searchRegex },
+                { text: searchRegex },
                 { album: searchRegex }, // Added root album
                 { description: searchRegex }, // Added description
                 { 'location.name': searchRegex }, // Added root location
@@ -435,7 +450,10 @@ exports.getMedia = async (req, res, next) => {
 exports.searchMedia = async (req, res, next) => {
     try {
         const query = req.query.q || '';
-        const keywords = query.split(/\s+/).filter(k => k.length > 0);
+        
+        // AI-powered Natural Language Search
+        const keywords = await parseSearchQuery(query);
+        
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 50;
         const skip = (page - 1) * limit;
@@ -451,6 +469,7 @@ exports.searchMedia = async (req, res, next) => {
             const textFilters = keywordRegexes.map(regex => ({
                 $or: [
                     { tags: { $in: [regex] } },
+                    { text: { $in: [regex] } },
                     { album: regex },
                     { title: regex },
                     { description: regex },

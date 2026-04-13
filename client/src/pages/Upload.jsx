@@ -23,7 +23,11 @@ const Upload = () => {
 
     useEffect(() => {
         refreshAlbums();
-    }, [refreshAlbums]);
+        // Cleanup previews on unmount to prevent memory leaks
+        return () => {
+            previews.forEach(p => URL.revokeObjectURL(p.url));
+        };
+    }, []); // Only run on mount
 
     const handleFileChange = (e) => {
         const selectedFiles = Array.from(e.target.files);
@@ -48,13 +52,17 @@ const Upload = () => {
         setProgress(0);
     };
 
-    const handleRemoveFile = (id, index) => {
-        setFiles(prev => prev.filter((_, i) => i !== index));
+    const handleRemoveFile = (id) => {
         setPreviews(prev => {
             const fileToRemove = prev.find(p => p.id === id);
             if (fileToRemove) URL.revokeObjectURL(fileToRemove.url);
             return prev.filter(p => p.id !== id);
         });
+        // We need the index for files, so better filter by name or store file in previews
+        setFiles(prev => prev.filter((f, i) => {
+            const preview = previews.find(p => p.id === id);
+            return f.name !== preview?.name;
+        }));
     };
 
     const handleCreateAlbum = async () => {

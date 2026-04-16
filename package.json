@@ -5,9 +5,9 @@
   "main": "index.js",
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "server": "npm --prefix server run dev",
-    "client": "npm --prefix client run dev",
-    "build": "npm --prefix client install && npm --prefix client run build",
+    "server": "npm --prefix pixai-backend run dev",
+    "client": "npm --prefix pixai-frontend run dev",
+    "build": "npm --prefix pixai-frontend install && npm --prefix pixai-frontend run build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "engines": {
